@@ -1,0 +1,14 @@
+{
+    "idf.pythonInstallPath": "/Users/U769336/.espressif/python_env/idf5.4_py3.13_env/bin/python",
+    "files.associations": {
+        "string_view": "cpp",
+        "array": "cpp",
+        "deque": "cpp",
+        "list": "cpp",
+        "string": "cpp",
+        "unordered_map": "cpp",
+        "unordered_set": "cpp",
+        "vector": "cpp",
+        "initializer_list": "cpp"
+    }
+}
