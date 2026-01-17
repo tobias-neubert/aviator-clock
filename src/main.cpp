@@ -2,10 +2,7 @@
 #include <memory>
 
 // --- Framework/SoC Includes ---
-#include <soc/api/ISocComponent.h>
-#include <soc/esp32/ESP32MillisTime.h>
-#include <soc/esp32/ESP32Logger.h>
-#include <soc/esp32/ESP32Logger.h>
+#include <soc/esp32/ESP32Soc.h>
 
 // --- Stepper Includes ---
 #include <stepper/api/IStepperController.h>
@@ -13,7 +10,6 @@
 #include <stepper/accel/AccelStepperWrapper.h>
 #include <stepper/accel/AccelStepperMotor.h>
 #include <stepper/homing/LimitSwitchHomingStrategy.h>
-#include <soc/esp32/ESP32DigitalInput.h>
 
 // --- Application Includes ---
 #include <aviator-clock/ClockHand.h>
@@ -37,104 +33,77 @@ const double SHARP_TICK_ACCELERATION_DPS2 = 60000.0;
 
 // =========================================================================
 // --- GLOBAL DECLARATIONS ---
-// Declare all components as uninitialized smart pointers to their INTERFACES.
-// This decouples our application from concrete implementations.
-// see "The Static Initialization Order Fiasco"
 // =========================================================================
-std::unique_ptr<soc::api::ILogger> logger;
-std::unique_ptr<soc::api::ITime> timeProvider;
+std::unique_ptr<soc::api::ISoc> g_soc;
 std::unique_ptr<stepper::api::IStepperController> accelWrapper;
 std::unique_ptr<soc::api::IDigitalInput> limitSwitch;
 std::unique_ptr<stepper::api::IHomingStrategy> homingStrategy;
-std::unique_ptr<IStepperMotor> motor;
-std::unique_ptr<soc::api::ISocComponent> clockHand;
-
-// --- State Flags of the main program---
-bool clockOperationSetupDone = false;
-bool failureLogged = false;
+std::unique_ptr<aviator_clock::ClockHand> clockHand;
 
 // --- Homing Configuration ---
 const stepper::homing::LimitSwitchHomingStrategy::Config homingConfig = {
-    .homingSpeedStepsPerSec = 400,                              // Slower speed for homing (e.g., 1/4 revolution per sec if 1600 steps/rev)
-    .homingAccelerationStepsPerSecSq = 800,                     // Gentle acceleration
-    .maxHomingTravelSteps = EFFECTIVE_STEPS_PER_REVOLUTION * 2, // e.g., allow 2 full revolutions to find switch
-    .moveDirectionSign = -1                                     // IMPORTANT: Set this to +1 or -1 depending on your setup!
-                                                                // -1 usually means counter-clockwise for AccelStepper
-};
+    .homingSpeedStepsPerSec = 400,
+    .homingAccelerationStepsPerSecSq = 800,
+    .maxHomingTravelSteps = EFFECTIVE_STEPS_PER_REVOLUTION * 2,
+    .moveDirectionSign = -1};
 
 void setup()
 {
   Serial.begin(115200);
-  // =========================================================================
-  // --- INSTANTIATION AND WIRING (Dependency Injection) ---
-  // Create all objects in a controlled order, satisfying dependencies.
-  // This is our "Composition Root".
-  // see "The Static Initialization Order Fiasco"
-  // =========================================================================
-  logger = std::make_unique<soc::esp32::ESP32Logger>(soc::api::ILogger::INFO_LEVEL);
-  timeProvider = std::make_unique<soc::esp32::ESP32MillisTime>();
+
+  // 1. Create and initialize the central SoC object
+  auto esp32Soc = std::make_unique<soc::esp32::ESP32Soc>();
+  esp32Soc->init("9zP4UWzi8xYmIG8c7VAk", "10504184df2b662bff3d4c2f97a8c99f");
+  g_soc = std::move(esp32Soc);
+
+  auto &logger = g_soc->getLogger();
+  logger.info("=================================================");
+  logger.info(" ESP32 Aviator Clock (RTOS Version)");
+  logger.info(" System Booted: %s, %s", __DATE__, __TIME__);
+  logger.info("=================================================");
+  logger.info("SoC created and initialized.");
+
+  // 2. Create hardware-related components
   accelWrapper = std::make_unique<stepper::accel::AccelStepperWrapper>(STEP_PIN_HW, DIR_PIN_HW);
-  limitSwitch = std::make_unique<soc::esp32::ESP32DigitalInput>(LIMIT_SWITCH_PIN_HW, true);
-  limitSwitch->begin();
+  limitSwitch = g_soc->createDigitalInput(LIMIT_SWITCH_PIN_HW, true);
 
-  // Now we can use the logger
-  logger->info("=================================================");
-  logger->info(" ESP32 Aviator Clock");
-  logger->info(" System Booted: %s, %s", __DATE__, __TIME__);
-  logger->info("=================================================");
-  logger->info("Level 0 components created.");
+  logger.info("Level 0 components created.");
 
-  // Pass dependencies by reference by DEREFERENCING the smart pointers with *.
   homingStrategy = std::make_unique<stepper::homing::LimitSwitchHomingStrategy>(
-      *accelWrapper,
-      *limitSwitch,
-      homingConfig,
-      *logger);
-  logger->info("Level 1 components (HomingStrategy) created.");
+      *accelWrapper, *limitSwitch, homingConfig, logger);
 
-  motor = std::make_unique<stepper::accel::AccelStepperMotor>(
-      *accelWrapper,
-      EFFECTIVE_STEPS_PER_REVOLUTION,
-      *homingStrategy,
-      *logger,
-      ENABLE_PIN_HW,
-      true // enablePinActiveLow
-  );
-  logger->info("Level 2 components (Motor) created.");
+  logger.info("Level 1 components (HomingStrategy) created.");
 
+  auto motor = std::make_unique<stepper::accel::AccelStepperMotor>(
+      *accelWrapper, EFFECTIVE_STEPS_PER_REVOLUTION, *homingStrategy, logger,
+      ENABLE_PIN_HW, true);
+
+  logger.info("Level 2 components (Motor) created.");
+
+  // 3. Create the main application component (ClockHand)
+  // The ClockHand is now an active component that manages its own task.
   clockHand = std::make_unique<aviator_clock::ClockHand>(
       aviator_clock::ClockHand::HandType::SECOND,
-      *timeProvider,
+      *g_soc,
       std::move(motor),
-      *logger,
       DIAL_TOTAL_ACTIVE_ANGLE,
       DIAL_START_OFFSET_DEGREES,
       SHARP_TICK_SPEED_DPS,
       SHARP_TICK_ACCELERATION_DPS2);
-  logger->info("Level 3 components (ClockHands) created.");
-  logger->info("All components created and wired up successfully.");
 
-  // --- Now, proceed with operational logic using the initialized objects ---
-  // simply setup the root component, it will setup its children
+  logger.info("Level 3 components (ClockHand) created.");
+
+  // 4. Setup and start the application component
   if (clockHand)
   {
     clockHand->setup();
+    clockHand->start();
+    logger.info("ClockHand task started.");
   }
 }
 
 void loop()
 {
-  {
-    // do not check for the motor, because its not owned anymore
-    // by the main program. It has been moved to the clock.
-    // see The Static Initialization Order Fiasco
-    if (!logger || !clockHand)
-    {
-      Serial.printf("Objects not initialized correctly\n");
-      return;
-    }
-
-    clockHand->advanceState(millis());
-    clockHand->render();
-  }
+  // THIS IS INTENTIONALLY LEFT EMPTY.
+  // The FreeRTOS scheduler is now in control. All logic runs in tasks.
 }

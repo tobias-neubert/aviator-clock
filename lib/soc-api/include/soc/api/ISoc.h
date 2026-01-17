@@ -1,64 +1,72 @@
-// soc/api/ISoc.h
 #pragma once
 
-#include <memory> // For std::shared_ptr
-#include <soc/api/ISocComponent.h>
+#include <memory>
+#include <string>
+#include "IDigitalInput.h"
+#include "ILogger.h"
+#include "ISleeper.h"
+#include "ITask.h"
+#include "ITime.h"
 
 namespace soc
 {
     namespace api
     {
         /**
-         * @brief Interface representing the main application.
+         * @brief Interface for the System-on-a-Chip (SoC) abstraction layer.
          *
-         * Manages a collection of ISocComponents and orchestrates the main application
-         * loop phases (Input, State Advancement, Rendering).
+         * This class acts as a facade and factory for all hardware-specific services,
+         * such as logging, time providers, and I/O. It decouples the application
+         * logic from the concrete hardware implementation.
          */
         class ISoc
         {
         public:
-            /**
-             * @brief Virtual destructor is essential for interfaces.
-             */
             virtual ~ISoc() = default;
 
             /**
-             * @brief Processes world-level inputs (e.g., network server events,
-             * system-wide button presses). This phase typically happens once per loop.
-             * It might trigger actions or state changes within specific components later
-             * during the advanceState phase.
+             * @brief Gets a reference to the system-wide logger.
              */
-            virtual void processInput() = 0;
+            virtual ILogger &getLogger() = 0;
 
             /**
-             * @brief Advances the state of all managed components based on time.
-             * Typically iterates through all registered ISocComponents and calls their
-             * update() method.
-             * @param currentTimeMs The current application time in milliseconds.
+             * @brief Gets a reference to the system-wide time provider.
              */
-            virtual void advanceState(unsigned long currentTimeMs) = 0;
+            virtual ITime &getTimeProvider() = 0;
 
             /**
-             * @brief Renders the current state of all managed components.
-             * Typically iterates through all registered ISocComponents and calls their
-             * render() method. This is where components produce their output (e.g.,
-             * update LEDs, displays, send data).
+             * @brief Gets a reference to the system-wide sleeper.
              */
-            virtual void render() = 0;
+            virtual ISleeper &getSleeper() = 0;
 
             /**
-             * @brief Adds a component to be managed by the ISoc.
+             * @brief Factory method to create a digital input pin.
              *
-             * Once added, the component's setup() method will likely be called,
-             * and its update() and render() methods will be called during the
-             * corresponding phases of the main loop. Its teardown() method
-             * may be called upon removal or world destruction.
-             *
-             * @param component A std::shared_ptr to the component implementing ISocComponent.
-             * Using shared_ptr helps manage the lifetime of the component.
+             * @param pin The GPIO pin number.
+             * @param pullup Whether to enable the internal pull-up resistor.
+             * @return A unique_ptr to the created IDigitalInput instance.
              */
-            virtual void addComponent(std::shared_ptr<ISocComponent> component) = 0;
+            virtual std::unique_ptr<IDigitalInput> createDigitalInput(int pin,
+                                                                      bool pullup) = 0;
+
+            /**
+             * @brief Factory method to create and start a new RTOS task.
+             *
+             * The created task will begin execution immediately. The lifecycle of the
+             * underlying OS task is tied to the returned unique_ptr. When the pointer
+             * is destroyed, the task should be gracefully terminated and joined.
+             *
+             * @param taskFunction The function or lambda to be executed by the task.
+             * @param name A descriptive name for the task (used for debugging).
+             * @param stackSize The stack size in bytes to be allocated for the task.
+             * @param priority The priority at which the task should run (higher numbers
+             * mean higher priority).
+             * @return A unique_ptr to an ITask object representing the running task.
+             */
+            virtual std::unique_ptr<ITask> createTask(TaskFunction_t taskFunction,
+                                                      const std::string &name,
+                                                      unsigned int stackSize = 4096,
+                                                      unsigned int priority = 1) = 0;
         };
-
     } // namespace api
 } // namespace soc

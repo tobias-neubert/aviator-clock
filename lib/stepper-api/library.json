@@ -1,8 +1,8 @@
 {
-    "name": "stepper-api",
-    "version": "1.0.0",
-    "build": {
-      "includeDir": "include"
-    }
+  "name": "stepper-api",
+  "version": "1.0.0",
+  "build": {
+    "includeDir": "include",
+    "flags": "-std=gnu++17"
   }
-  
+}

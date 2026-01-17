@@ -1,211 +1,210 @@
 #include <aviator-clock/ClockHand.h>
+#include <string>
 
 namespace aviator_clock
 {
-    ClockHand::ClockHand(HandType type,
-                         soc::api::ITime &timeProvider,
-                         std::unique_ptr<IStepperMotor> stepperMotor,
-                         soc::api::ILogger &logger,
-                         double totalAngleForDial,
-                         double dialStartOffsetDegrees,
-                         double motorSpeedDps,
-                         double motorAccelerationDps2)
-        : _type(type),
-          _timeProvider(timeProvider),
-          // move transfers ownership of the pointer
-          // whoever created the stepperMotor, now
-          // it belongs to this hand. If the hand is destroyed
-          // the stepperMotor will be as well.
-          _stepperMotor(std::move(stepperMotor)),
-          _logger(logger),
-          _lastUnitProcessed(-1),
-          _isPositionInitialized(false),
-          _totalAngleForDial(totalAngleForDial),
-          _dialStartOffsetDegrees(dialStartOffsetDegrees),
-          _motorSpeedDps(motorSpeedDps),
-          _motorAccelerationDps2(motorAccelerationDps2),
-          _homingFailed(false),
-          _operationStarted(false)
+
+  ClockHand::ClockHand(HandType type, soc::api::ISoc &soc,
+                       std::unique_ptr<IStepperMotor> &&stepperMotor,
+                       double totalAngleForDial, double dialStartOffsetDegrees,
+                       double motorSpeedDps, double motorAccelerationDps2)
+      : _type(type),
+        _soc(soc),
+        _logger(_soc.getLogger()),
+        _timeProvider(_soc.getTimeProvider()),
+        _stepperMotor(std::move(stepperMotor)),
+        _shouldStop(false),
+        _totalAngleForDial(totalAngleForDial),
+        _dialStartOffsetDegrees(dialStartOffsetDegrees),
+        _motorSpeedDps(motorSpeedDps),
+        _motorAccelerationDps2(motorAccelerationDps2),
+        _lastUnitProcessed(-1)
+  {
+    if (_stepperMotor == nullptr)
     {
-        if (_stepperMotor == nullptr)
-        {
-            _logger.error("ERROR: Null stepper motor provided to ClockHand");
-        }
+      _logger.error("ERROR: Null stepper motor provided to ClockHand");
+    }
 
-        if (_totalAngleForDial <= 0.0 || _totalAngleForDial > 360.0)
-        {
-            _logger.warn("Warning: Invalid totalAngleForDial (%.2f). Defaulting to 360.0", totalAngleForDial);
-            _totalAngleForDial = 360.0;
-        }
+    if (_totalAngleForDial <= 0.0 || _totalAngleForDial > 360.0)
+    {
+      _logger.warn("Warning: Invalid totalAngleForDial (%.2f). Defaulting to 360.0",
+                   _totalAngleForDial);
+      _totalAngleForDial = 360.0;
+    }
 
-        // Calculate degrees per unit based on the hand type
-        int unitsOnDial = 0;
+    int unitsOnDial = (_type == HandType::HOUR) ? 12 : 60;
+    _degreesPerUnit = _totalAngleForDial / static_cast<double>(unitsOnDial);
+  }
+
+  ClockHand::~ClockHand() { teardown(); }
+
+  void ClockHand::setup()
+  {
+    if (!_stepperMotor)
+      return;
+    _stepperMotor->setSpeed(_motorSpeedDps);
+    _stepperMotor->setAcceleration(_motorAccelerationDps2);
+    _logger.info("ClockHand::setup() - Motor configured for %s hand.",
+                 _type == HandType::SECOND ? "SECOND" : "OTHER");
+  }
+
+  void ClockHand::teardown()
+  {
+    _shouldStop = true; // Signal task to stop
+    if (_task)
+    {
+      // The destruction of the ITask unique_ptr will join the thread.
+      // This happens automatically when clockHand is destroyed.
+      // Calling reset() here ensures it happens before the motor is disabled.
+      _task.reset();
+    }
+    if (!_stepperMotor)
+      return;
+    if (_stepperMotor->isBusy())
+    {
+      _stepperMotor->stop();
+    }
+    _stepperMotor->disable();
+  }
+
+  void ClockHand::start()
+  {
+    if (_task)
+    {
+      _logger.warn("ClockHand::start() called but task is already running.");
+      return;
+    }
+    auto task_logic = [this]()
+    { this->taskLoop(); };
+    std::string task_name = "hand_task"; // Simplified name
+    _task = _soc.createTask(task_logic, task_name, 4096 * 2);
+  }
+
+  void ClockHand::taskLoop()
+  {
+    auto &sleeper = _soc.getSleeper();
+    if (!_stepperMotor)
+    {
+      _logger.error("ClockHand Task: No stepper motor, task cannot run.");
+      return;
+    }
+
+    // 1. Homing Phase (Blocking)
+    _logger.info("ClockHand Task: Starting homing...");
+    _stepperMotor->enable();
+    if (!_stepperMotor->home())
+    {
+      _logger.error("ClockHand Task: Homing command failed to start.");
+      return; // End task
+    }
+
+    while (!_shouldStop && (_stepperMotor->needsHoming() || _stepperMotor->isBusy()))
+    {
+      _stepperMotor->update();
+      sleeper.sleep(5);
+    }
+
+    if (_shouldStop)
+      return; // Exit if stopped during homing
+
+    if (_stepperMotor->isHomingFailed())
+    {
+      _logger.error("ClockHand Task: Homing failed. Task stopping.");
+      return;
+    }
+    _logger.info("ClockHand Task: Homing successful!");
+
+    // 2. Initial Position Phase (Blocking)
+    _logger.info("ClockHand Task: Moving to initial position...");
+    soc::api::ITime::TimeComponents currentTime;
+    if (_timeProvider.asTimeComponents(currentTime))
+    {
+      int currentUnit = 0;
+      switch (_type)
+      {
+      case HandType::HOUR:
+        currentUnit = currentTime.hours % 12;
+        break;
+      case HandType::MINUTE:
+        currentUnit = currentTime.minutes;
+        break;
+      case HandType::SECOND:
+        currentUnit = currentTime.seconds;
+        break;
+      }
+      moveToUnit(currentUnit);
+      _lastUnitProcessed = currentUnit;
+
+      while (!_shouldStop && _stepperMotor->isBusy())
+      {
+        _stepperMotor->update();
+        sleeper.sleep(5);
+      }
+      if (_shouldStop)
+        return; // Exit if stopped during init move
+      _logger.info("ClockHand Task: Initial position set to %d.", currentUnit);
+    }
+    else
+    {
+      _logger.error("ClockHand Task: Could not get initial time.");
+    }
+
+    // 3. Normal Ticking Phase (Loop)
+    _logger.info("ClockHand Task: Entering normal ticking loop.");
+    while (!_shouldStop)
+    {
+      // Always call update for the motor
+      _stepperMotor->update();
+
+      soc::api::ITime::TimeComponents time;
+      if (_timeProvider.asTimeComponents(time))
+      {
+        int currentUnit = 0;
         switch (_type)
         {
         case HandType::HOUR:
-            unitsOnDial = 12;
-            break;
+          currentUnit = time.hours % 12;
+          break;
         case HandType::MINUTE:
+          currentUnit = time.minutes;
+          break;
         case HandType::SECOND:
-            unitsOnDial = 60;
-            break;
+          currentUnit = time.seconds;
+          break;
         }
 
-        if (unitsOnDial <= 0)
+        if (currentUnit != _lastUnitProcessed)
         {
-            _logger.error("Units on dial must be greater than 0 but is %.2f", unitsOnDial);
+          if (!_stepperMotor->isBusy())
+          {
+            moveToUnit(currentUnit);
+            _lastUnitProcessed = currentUnit;
+          }
         }
-        else
-        {
-            _degreesPerUnit = _totalAngleForDial / static_cast<double>(unitsOnDial);
-        }
+      }
+      // Sleep to yield CPU. A short sleep keeps motor updates frequent.
+      sleeper.sleep(1);
     }
+    _logger.info("ClockHand Task: Stopped.");
+  }
 
-    // --- ISocComponent Methods ---
-    void ClockHand::setup()
+  void ClockHand::moveToUnit(int unit)
+  {
+    if (!_stepperMotor)
+      return;
+
+    int unitForCalc = unit;
+    if (_type == HandType::HOUR && unit == 0)
     {
-        if (!_stepperMotor)
-            return;
-
-        _stepperMotor->setSpeed(_motorSpeedDps);
-        _stepperMotor->setAcceleration(_motorAccelerationDps2);
-        _logger.info("ClockHand::setup() - Motor configured. Speed=%.2f, Accel=%.2f", _motorSpeedDps, _motorAccelerationDps2);
-
-        _stepperMotor->enable();
-        if (!_stepperMotor->home())
-        {
-            _logger.error("ClockHand: Stepper homing failed!");
-        }
-        else
-        {
-            _logger.info("ClockHand: Stepper homing started.");
-        }
-        _isPositionInitialized = false;
-        _lastUnitProcessed = -1;
+      unitForCalc = 12;
     }
 
-    void ClockHand::advanceState(unsigned long currentTimeMs)
+    double targetAngle = _dialStartOffsetDegrees + (static_cast<double>(unitForCalc) * _degreesPerUnit);
+
+    _logger.debug("ClockHand: Moving to unit %d (Angle: %.2f)", unit, targetAngle);
+    if (!_stepperMotor->moveToAbsolute(targetAngle))
     {
-        if (!_stepperMotor)
-            return;
-
-        _stepperMotor->update();
-
-        // === STATE A: Homing is Required ===
-        if (_stepperMotor->needsHoming())
-        {
-            if (_stepperMotor->isHomingFailed() && !_homingFailed)
-            {
-                _logger.error("ClockHand: Homing has failed! Please check motor and limit switch. System halted.");
-                _homingFailed = true;
-            }
-
-            // While homing (or if failed), do not proceed to clock logic.
-            return;
-        }
-
-        // === STATE B: Homing is Complete and Successful ===
-        // We can only proceed if the motor isn't busy with a final homing move or a previous tick.
-        if (_stepperMotor->isBusy())
-        {
-            return;
-        }
-
-        if (!_operationStarted)
-        {
-            _logger.info("ClockHand: Homing successful! Motor is at home position.");
-            _logger.info("ClockHand: Initializing position...");
-            _operationStarted = true;
-
-            soc::api::ITime::TimeComponents currentTime;
-            if (_timeProvider.asTimeComponents(currentTime))
-            {
-                int currentUnit = 0;
-                switch (_type)
-                {
-                case HandType::HOUR:
-                    currentUnit = currentTime.hours % 12;
-                    break;
-                case HandType::MINUTE:
-                    currentUnit = currentTime.minutes;
-                    break;
-                case HandType::SECOND:
-                    currentUnit = currentTime.seconds;
-                    break;
-                }
-                moveToUnit(currentUnit);
-                _lastUnitProcessed = currentUnit;
-            }
-        }
-        // === STATE C: Normal Ticking Operation ===
-        else
-        {
-            soc::api::ITime::TimeComponents currentTime;
-            if (!_timeProvider.asTimeComponents(currentTime))
-            {
-                _logger.error("timeProvider did not return true. So I am doing nothing.");
-                return;
-            }
-
-            int currentUnit = 0;
-            switch (_type)
-            {
-            case HandType::HOUR:
-                currentUnit = currentTime.hours % 12;
-                break;
-            case HandType::MINUTE:
-                currentUnit = currentTime.minutes;
-                break;
-            case HandType::SECOND:
-                currentUnit = currentTime.seconds;
-                break;
-            }
-
-            if (currentUnit != _lastUnitProcessed)
-            {
-                moveToUnit(currentUnit);
-                _lastUnitProcessed = currentUnit;
-            }
-        }
+      _logger.error("ClockHand: moveToAbsolute command failed.");
     }
-
-    void ClockHand::render()
-    {
-    }
-
-    void ClockHand::teardown()
-    {
-        if (!_stepperMotor)
-            return;
-
-        if (_stepperMotor->isBusy())
-        {
-            _stepperMotor->stop();
-        }
-        _stepperMotor->disable();
-    }
-
-    // --- Private Methods ---
-    void ClockHand::moveToUnit(int unit)
-    {
-        if (!_stepperMotor)
-        {
-            return;
-        }
-
-        // Handle the 12-o'clock case for hours, which is often represented as 0
-        int unitForCalc = unit;
-        if (_type == HandType::HOUR && unit == 0)
-        { // 12 AM or 12 PM
-            unitForCalc = 12;
-        }
-
-        double targetAngle = _dialStartOffsetDegrees + (static_cast<double>(unitForCalc) * _degreesPerUnit);
-
-        _logger.debug("ClockHand: Moving to unit %d (Angle: %.2f)", unit, targetAngle);
-        if (!_stepperMotor->moveToAbsolute(targetAngle))
-        {
-            _logger.error("stepper motor did not move to %.2f", targetAngle);
-        }
-    }
+  }
 } // namespace aviator_clock

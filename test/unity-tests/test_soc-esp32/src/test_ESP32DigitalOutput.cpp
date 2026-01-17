@@ -1,10 +1,9 @@
 #include <unity.h>
-#include <map>
 #include <Arduino.h>
 
 // pull in your implementation and API
 #include <soc/api/IDigitalOutput.h>
-#include <soc/esp32/ESP32DigitalOutput.h>
+#include "ESP32DigitalOutput.h"
 
 using soc::api::IDigitalOutput;
 using soc::esp32::ESP32DigitalOutput;

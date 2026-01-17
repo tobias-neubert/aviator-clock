@@ -1,8 +1,8 @@
 {
-    "name": "analog-clock",
-    "version": "1.0.0",
-    "build": {
-      "includeDir": "include"
-    }
+  "name": "analog-clock",
+  "version": "1.0.0",
+  "build": {
+    "includeDir": "include",
+    "flags": "-std=gnu++17"
   }
-  
+}

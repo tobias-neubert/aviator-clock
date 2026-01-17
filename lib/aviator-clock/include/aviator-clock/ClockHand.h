@@ -1,66 +1,57 @@
 #pragma once
 
 #include <memory>
+#include <atomic>
 
-#include <soc/api/ISocComponent.h>
-#include <soc/api/ITime.h>
 #include <soc/api/ILogger.h>
+#include <soc/api/ISoc.h>
+#include <soc/api/ITask.h>
+#include <soc/api/ITime.h>
 #include <stepper/api/IStepperMotor.h>
 
 namespace aviator_clock
 {
-    class ClockHand : public soc::api::ISocComponent
+  class ClockHand
+  {
+  public:
+    enum class HandType
     {
-    public:
-        enum class HandType
-        {
-            HOUR,
-            MINUTE,
-            SECOND
-        };
-
-        /**
-         * @brief Construct a new generic Clock Hand.
-         *
-         * Dependencies that are "borrowed" (like the logger and time provider)
-         * are passed by reference.
-         *
-         * Dependencies that are "owned" (like the stepper motor) are passed
-         * by std::unique_ptr to transfer ownership to this class.
-         */
-        ClockHand(HandType type,
-                  soc::api::ITime &timeProvider,
-                  std::unique_ptr<IStepperMotor> stepperMotor,
-                  soc::api::ILogger &logger,
-                  double totalAngleForDial,
-                  double dialStartOffsetDegrees,
-                  double motorSpeedDps,
-                  double motorAccelerationDps2);
-
-        virtual ~ClockHand() = default;
-
-        void setup() override;
-        void advanceState(unsigned long currentTimeMs) override;
-        void render() override;
-        void teardown() override;
-
-    private:
-        HandType _type;
-        soc::api::ITime &_timeProvider;
-        std::unique_ptr<IStepperMotor> _stepperMotor;
-        soc::api::ILogger &_logger;
-
-        double _totalAngleForDial;      // Total angular span of the hand, less than 360 for analog instruments
-        double _dialStartOffsetDegrees; // Offset of "0" from motor's physical 0
-        double _degreesPerUnit;         // Calculated degrees for each unit tick
-
-        int _lastUnitProcessed;
-        bool _isPositionInitialized;
-        double _motorSpeedDps;
-        double _motorAccelerationDps2;
-        bool _homingFailed;
-        bool _operationStarted;
-
-        void moveToUnit(int unit);
+      HOUR,
+      MINUTE,
+      SECOND
     };
-}
+
+    ClockHand(HandType type, soc::api::ISoc &soc,
+              std::unique_ptr<IStepperMotor> &&stepperMotor,
+              double totalAngleForDial, double dialStartOffsetDegrees,
+              double motorSpeedDps, double motorAccelerationDps2);
+
+    ~ClockHand();
+
+    void setup();
+    void teardown();
+    void start();
+
+  private:
+    /**
+     * @brief The main task loop with simplified, blocking-style logic.
+     */
+    void taskLoop();
+    void moveToUnit(int unit);
+
+    HandType _type;
+    soc::api::ISoc &_soc;
+    soc::api::ILogger &_logger;
+    soc::api::ITime &_timeProvider;
+    std::unique_ptr<IStepperMotor> _stepperMotor;
+    std::unique_ptr<soc::api::ITask> _task;
+    std::atomic<bool> _shouldStop;
+
+    double _totalAngleForDial;
+    double _dialStartOffsetDegrees;
+    double _degreesPerUnit;
+    int _lastUnitProcessed;
+    double _motorSpeedDps;
+    double _motorAccelerationDps2;
+  };
+} // namespace aviator_clock

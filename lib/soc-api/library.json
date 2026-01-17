@@ -1,8 +1,7 @@
 {
-    "name": "soc-api",
-    "version": "1.0.0",
-    "build": {
-      "includeDir": "include"
-    }
+  "name": "soc-api",
+  "version": "1.0.0",
+  "build": {
+    "flags": "-std=gnu++17"
   }
-  
+}

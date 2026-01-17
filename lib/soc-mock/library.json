@@ -1,0 +1,13 @@
+{
+  "name": "soc-mock",
+  "version": "1.0.0",
+  "description": "Mock implementation of the SoC API for host-based testing.",
+  "license": "MIT",
+  "authors": {
+    "name": "Your Name",
+    "email": "your.email@example.com"
+  },
+  "build": {
+    "flags": "-std=gnu++17"
+  }
+}
