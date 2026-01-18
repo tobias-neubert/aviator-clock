@@ -9,7 +9,7 @@
 #include <stepper/api/IHomingStrategy.h>
 #include <stepper/accel/AccelStepperWrapper.h>
 #include <stepper/accel/AccelStepperMotor.h>
-#include <stepper/homing/LimitSwitchHomingStrategy.h>
+#include <stepper/homing/NoHomingStrategy.h>
 
 // --- Application Includes ---
 #include <aviator-clock/ClockHand.h>
@@ -34,24 +34,23 @@ const double SHARP_TICK_ACCELERATION_DPS2 = 60000.0;
 // =========================================================================
 // --- GLOBAL DECLARATIONS ---
 // =========================================================================
+// smart pointers for automatic resource management
+// unique_ptrs are used to ensure single ownership semantics, there can always be only
+// one owner of each resource, which simplifies lifecycle management in an RTOS environment.
 std::unique_ptr<soc::api::ISoc> g_soc;
 std::unique_ptr<stepper::api::IStepperController> accelWrapper;
 std::unique_ptr<soc::api::IDigitalInput> limitSwitch;
 std::unique_ptr<stepper::api::IHomingStrategy> homingStrategy;
 std::unique_ptr<aviator_clock::ClockHand> clockHand;
 
-// --- Homing Configuration ---
-const stepper::homing::LimitSwitchHomingStrategy::Config homingConfig = {
-    .homingSpeedStepsPerSec = 400,
-    .homingAccelerationStepsPerSecSq = 800,
-    .maxHomingTravelSteps = EFFECTIVE_STEPS_PER_REVOLUTION * 2,
-    .moveDirectionSign = -1};
-
 void setup()
 {
   Serial.begin(115200);
 
   // 1. Create and initialize the central SoC object
+  // Best practice: Create and initialize a LOCAL pointer first and
+  // movie it into the GLOBAL pointer only after successful initialization.
+  // Prevents having a global pointer in an invalid state.
   auto esp32Soc = std::make_unique<soc::esp32::ESP32Soc>();
   esp32Soc->init("9zP4UWzi8xYmIG8c7VAk", "10504184df2b662bff3d4c2f97a8c99f");
   g_soc = std::move(esp32Soc);
@@ -69,8 +68,7 @@ void setup()
 
   logger.info("Level 0 components created.");
 
-  homingStrategy = std::make_unique<stepper::homing::LimitSwitchHomingStrategy>(
-      *accelWrapper, *limitSwitch, homingConfig, logger);
+  homingStrategy = std::make_unique<stepper::homing::NoHomingStrategy>();
 
   logger.info("Level 1 components (HomingStrategy) created.");
 
