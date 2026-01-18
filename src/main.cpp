@@ -55,7 +55,7 @@ void setup()
   // Prevents having a global pointer in an invalid state.
   // auto: type inference
   auto esp32Soc = std::make_unique<soc::esp32::ESP32Soc>();
-  esp32Soc->init("9zP4UWzi8xYmIG8c7VAk", "10504184df2b662bff3d4c2f97a8c99f");
+  esp32Soc->init("Starcommand", "75v5VrZSyKRQatFtkRmV");
   g_soc = std::move(esp32Soc);
 
   ESP_LOGI(TAG, "=================================================");
