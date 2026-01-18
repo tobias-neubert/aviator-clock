@@ -37,6 +37,9 @@ namespace aviator_clock
      */
     void taskLoop();
     void moveToUnit(int unit);
+    bool runHomingSequence();
+    bool setInitialPosition();
+    void runTickingLoop();
 
     HandType _type;
     soc::api::ISoc &_soc;
