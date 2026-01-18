@@ -3,7 +3,6 @@
 #include <memory>
 #include <atomic>
 
-#include <soc/api/ILogger.h>
 #include <soc/api/ISoc.h>
 #include <soc/api/ITask.h>
 #include <soc/api/ITime.h>
@@ -41,7 +40,7 @@ namespace aviator_clock
 
     HandType _type;
     soc::api::ISoc &_soc;
-    soc::api::ILogger &_logger;
+    
     soc::api::ITime &_timeProvider;
     std::unique_ptr<IStepperMotor> _stepperMotor;
     std::unique_ptr<soc::api::ITask> _task;

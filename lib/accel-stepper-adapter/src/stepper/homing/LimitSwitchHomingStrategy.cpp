@@ -1,5 +1,8 @@
 #include <stepper/homing/LimitSwitchHomingStrategy.h>
 #include <cmath>
+#include "esp_log.h"
+
+static const char* TAG = "LimitSwitchHoming";
 
 namespace stepper
 {
@@ -8,12 +11,10 @@ namespace stepper
         LimitSwitchHomingStrategy::LimitSwitchHomingStrategy(
             stepper::api::IStepperController &stepperController,
             soc::api::IDigitalInput &limitSwitch,
-            const Config &config,
-            soc::api::ILogger& logger)
+            const Config &config)
             : _stepperController(stepperController),
               _limitSwitch(limitSwitch),
               _config(config),
-              _logger(logger),
               _currentPhase(HomingPhase::NOT_STARTED),
               _currentHomingResult(stepper::api::HomingResult::NOT_YET_STARTED)
         {
@@ -79,7 +80,7 @@ namespace stepper
 
                 if (_limitSwitch.isActive())
                 {
-                    _logger.info("Limit switch is active");
+                    ESP_LOGI(TAG, "Limit switch is active");
                     _stepperController.stop();
                     _currentPhase = HomingPhase::DECELERATING_ON_SWITCH;
                     _currentHomingResult = stepper::api::HomingResult::IN_PROGRESS;
@@ -95,7 +96,7 @@ namespace stepper
                 // AccelStepper::run() returns false when it is stopped (at target and speed is zero).
                 if (!_stepperController.run())
                 {
-                    _logger.info("LimitSwitchHomingStrategy: Homing completed.");
+                    ESP_LOGI(TAG, "Homing completed.");
                     _stepperController.setCurrentPosition(0);
                     _currentHomingResult = stepper::api::HomingResult::SUCCESS;
                 }

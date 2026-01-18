@@ -3,6 +3,7 @@
 #include <soc/api/IDigitalInput.h>
 #include <algorithm>
 #include <thread>
+#include <stdio.h>
 
 namespace soc
 {
@@ -10,7 +11,6 @@ namespace soc
   {
     MockSoc::MockSoc()
     {
-      m_logger = std::make_unique<MockLogger>();
       m_timeProvider = std::make_unique<MockTime>();
       m_sleeper = std::make_unique<MockSleeper>();
     }
@@ -18,7 +18,6 @@ namespace soc
     // The destructor can now be defaulted in the header, but it's also fine here.
     MockSoc::~MockSoc() = default;
 
-    soc::api::ILogger &MockSoc::getLogger() { return *m_logger; }
     soc::api::ITime &MockSoc::getTimeProvider() { return *m_timeProvider; }
     soc::api::ISleeper &MockSoc::getSleeper() { return *m_sleeper; }
 
@@ -32,7 +31,7 @@ namespace soc
         soc::api::TaskFunction_t taskFunction, const std::string &name,
         unsigned int stackSize, unsigned int priority)
     {
-      m_logger->info("Mock 'creating' task: %s", name.c_str());
+      printf("Mock 'creating' task: %s\n", name.c_str());
 
       // Create a new thread that executes the provided function.
       // Wrap it in a MockTask to manage the thread's lifecycle (RAII).

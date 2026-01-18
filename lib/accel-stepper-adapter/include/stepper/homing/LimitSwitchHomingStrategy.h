@@ -3,7 +3,6 @@
 #include <stepper/api/IHomingStrategy.h>
 #include <stepper/api/IStepperController.h>
 #include <soc/api/IDigitalInput.h>
-#include <soc/api/ILogger.h>
 
 namespace stepper
 {
@@ -22,8 +21,7 @@ namespace stepper
 
             LimitSwitchHomingStrategy(stepper::api::IStepperController &stepperController,
                                       soc::api::IDigitalInput &limitSwitch,
-                                      const Config &config,
-                                      soc::api::ILogger& logger);
+                                      const Config &config);
 
             bool beginHoming() override;
             stepper::api::HomingResult updateHoming() override;
@@ -44,7 +42,7 @@ namespace stepper
             soc::api::IDigitalInput &_limitSwitch;
             const Config _config;
 
-            soc::api::ILogger& _logger;
+            
 
             HomingPhase _currentPhase;
             stepper::api::HomingResult _currentHomingResult;

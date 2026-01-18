@@ -1,5 +1,8 @@
 #include <aviator-clock/ClockHand.h>
 #include <string>
+#include "esp_log.h"
+
+static const char* TAG = "ClockHand";
 
 namespace aviator_clock
 {
@@ -10,7 +13,6 @@ namespace aviator_clock
                        double motorSpeedDps, double motorAccelerationDps2)
       : _type(type),
         _soc(soc),
-        _logger(_soc.getLogger()),
         _timeProvider(_soc.getTimeProvider()),
         _stepperMotor(std::move(stepperMotor)),
         _shouldStop(false),
@@ -22,12 +24,12 @@ namespace aviator_clock
   {
     if (_stepperMotor == nullptr)
     {
-      _logger.error("ERROR: Null stepper motor provided to ClockHand");
+      ESP_LOGE(TAG, "ERROR: Null stepper motor provided to ClockHand");
     }
 
     if (_totalAngleForDial <= 0.0 || _totalAngleForDial > 360.0)
     {
-      _logger.warn("Warning: Invalid totalAngleForDial (%.2f). Defaulting to 360.0",
+      ESP_LOGW(TAG, "Warning: Invalid totalAngleForDial (%.2f). Defaulting to 360.0",
                    _totalAngleForDial);
       _totalAngleForDial = 360.0;
     }
@@ -44,7 +46,7 @@ namespace aviator_clock
       return;
     _stepperMotor->setSpeed(_motorSpeedDps);
     _stepperMotor->setAcceleration(_motorAccelerationDps2);
-    _logger.info("ClockHand::setup() - Motor configured for %s hand.",
+    ESP_LOGI(TAG, "ClockHand::setup() - Motor configured for %s hand.",
                  _type == HandType::SECOND ? "SECOND" : "OTHER");
   }
 
@@ -71,7 +73,7 @@ namespace aviator_clock
   {
     if (_task)
     {
-      _logger.warn("ClockHand::start() called but task is already running.");
+      ESP_LOGW(TAG, "ClockHand::start() called but task is already running.");
       return;
     }
     auto task_logic = [this]()
@@ -85,16 +87,16 @@ namespace aviator_clock
     auto &sleeper = _soc.getSleeper();
     if (!_stepperMotor)
     {
-      _logger.error("ClockHand Task: No stepper motor, task cannot run.");
+      ESP_LOGE(TAG, "ClockHand Task: No stepper motor, task cannot run.");
       return;
     }
 
     // 1. Homing Phase (Blocking)
-    _logger.info("ClockHand Task: Starting homing...");
+    ESP_LOGI(TAG, "ClockHand Task: Starting homing...");
     _stepperMotor->enable();
     if (!_stepperMotor->home())
     {
-      _logger.error("ClockHand Task: Homing command failed to start.");
+      ESP_LOGE(TAG, "ClockHand Task: Homing command failed to start.");
       return; // End task
     }
 
@@ -109,13 +111,13 @@ namespace aviator_clock
 
     if (_stepperMotor->isHomingFailed())
     {
-      _logger.error("ClockHand Task: Homing failed. Task stopping.");
+      ESP_LOGE(TAG, "ClockHand Task: Homing failed. Task stopping.");
       return;
     }
-    _logger.info("ClockHand Task: Homing successful!");
+    ESP_LOGI(TAG, "ClockHand Task: Homing successful!");
 
     // 2. Initial Position Phase (Blocking)
-    _logger.info("ClockHand Task: Moving to initial position...");
+    ESP_LOGI(TAG, "ClockHand Task: Moving to initial position...");
     soc::api::ITime::TimeComponents currentTime;
     if (_timeProvider.asTimeComponents(currentTime))
     {
@@ -142,15 +144,15 @@ namespace aviator_clock
       }
       if (_shouldStop)
         return; // Exit if stopped during init move
-      _logger.info("ClockHand Task: Initial position set to %d.", currentUnit);
+      ESP_LOGI(TAG, "ClockHand Task: Initial position set to %d.", currentUnit);
     }
     else
     {
-      _logger.error("ClockHand Task: Could not get initial time.");
+      ESP_LOGE(TAG, "ClockHand Task: Could not get initial time.");
     }
 
     // 3. Normal Ticking Phase (Loop)
-    _logger.info("ClockHand Task: Entering normal ticking loop.");
+    ESP_LOGI(TAG, "ClockHand Task: Entering normal ticking loop.");
     while (!_shouldStop)
     {
       // Always call update for the motor
@@ -185,7 +187,7 @@ namespace aviator_clock
       // Sleep to yield CPU. A short sleep keeps motor updates frequent.
       sleeper.sleep(1);
     }
-    _logger.info("ClockHand Task: Stopped.");
+    ESP_LOGI(TAG, "ClockHand Task: Stopped.");
   }
 
   void ClockHand::moveToUnit(int unit)
@@ -201,10 +203,10 @@ namespace aviator_clock
 
     double targetAngle = _dialStartOffsetDegrees + (static_cast<double>(unitForCalc) * _degreesPerUnit);
 
-    _logger.debug("ClockHand: Moving to unit %d (Angle: %.2f)", unit, targetAngle);
+    ESP_LOGD(TAG, "ClockHand: Moving to unit %d (Angle: %.2f)", unit, targetAngle);
     if (!_stepperMotor->moveToAbsolute(targetAngle))
     {
-      _logger.error("ClockHand: moveToAbsolute command failed.");
+      ESP_LOGE(TAG, "ClockHand: moveToAbsolute command failed.");
     }
   }
 } // namespace aviator_clock

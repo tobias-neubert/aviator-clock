@@ -4,7 +4,6 @@
 #include <stepper/api/IStepperMotor.h>
 #include <stepper/api/IHomingStrategy.h>
 #include <stepper/api/StepperMotorState.h>
-#include <soc/api/ILogger.h>
 
 // A common invalid pin marker
 #ifndef INVALID_PIN
@@ -22,7 +21,6 @@ namespace stepper
                 stepper::api::IStepperController& stepperController,
                 int fullStepsPerRevolution,
                 stepper::api::IHomingStrategy& homingStrategy,
-                soc::api::ILogger& logger,
                 uint8_t enablePin = INVALID_PIN,
                 bool enablePinActiveLow = true);
 
@@ -56,7 +54,7 @@ namespace stepper
             float _currentSetSpeedDps;
             float _currentSetAccelerationDps2;
 
-            soc::api::ILogger& _logger;
+            
             stepper::api::StepperMotorState _currentState;
 
             long degreesToSteps(double degrees) const;

@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <memory>
+#include "esp_log.h"
 
 // --- Framework/SoC Includes ---
 #include <soc/esp32/ESP32Soc.h>
@@ -34,6 +35,7 @@ const double SHARP_TICK_ACCELERATION_DPS2 = 60000.0;
 // =========================================================================
 // --- GLOBAL DECLARATIONS ---
 // =========================================================================
+static const char* TAG = "main";
 // smart pointers for automatic resource management
 // unique_ptrs are used to ensure single ownership semantics, there can always be only
 // one owner of each resource, which simplifies lifecycle management in an RTOS environment.
@@ -55,28 +57,27 @@ void setup()
   esp32Soc->init("9zP4UWzi8xYmIG8c7VAk", "10504184df2b662bff3d4c2f97a8c99f");
   g_soc = std::move(esp32Soc);
 
-  auto &logger = g_soc->getLogger();
-  logger.info("=================================================");
-  logger.info(" ESP32 Aviator Clock (RTOS Version)");
-  logger.info(" System Booted: %s, %s", __DATE__, __TIME__);
-  logger.info("=================================================");
-  logger.info("SoC created and initialized.");
+  ESP_LOGI(TAG, "=================================================");
+  ESP_LOGI(TAG, " ESP32 Aviator Clock (RTOS Version)");
+  ESP_LOGI(TAG, " System Booted: %s, %s", __DATE__, __TIME__);
+  ESP_LOGI(TAG, "=================================================");
+  ESP_LOGI(TAG, "SoC created and initialized.");
 
   // 2. Create hardware-related components
   accelWrapper = std::make_unique<stepper::accel::AccelStepperWrapper>(STEP_PIN_HW, DIR_PIN_HW);
   limitSwitch = g_soc->createDigitalInput(LIMIT_SWITCH_PIN_HW, true);
 
-  logger.info("Level 0 components created.");
+  ESP_LOGI(TAG, "Level 0 components created.");
 
   homingStrategy = std::make_unique<stepper::homing::NoHomingStrategy>();
 
-  logger.info("Level 1 components (HomingStrategy) created.");
+  ESP_LOGI(TAG, "Level 1 components (HomingStrategy) created.");
 
   auto motor = std::make_unique<stepper::accel::AccelStepperMotor>(
-      *accelWrapper, EFFECTIVE_STEPS_PER_REVOLUTION, *homingStrategy, logger,
+      *accelWrapper, EFFECTIVE_STEPS_PER_REVOLUTION, *homingStrategy,
       ENABLE_PIN_HW, true);
 
-  logger.info("Level 2 components (Motor) created.");
+  ESP_LOGI(TAG, "Level 2 components (Motor) created.");
 
   // 3. Create the main application component (ClockHand)
   // The ClockHand is now an active component that manages its own task.
@@ -89,14 +90,14 @@ void setup()
       SHARP_TICK_SPEED_DPS,
       SHARP_TICK_ACCELERATION_DPS2);
 
-  logger.info("Level 3 components (ClockHand) created.");
+  ESP_LOGI(TAG, "Level 3 components (ClockHand) created.");
 
   // 4. Setup and start the application component
   if (clockHand)
   {
     clockHand->setup();
     clockHand->start();
-    logger.info("ClockHand task started.");
+    ESP_LOGI(TAG, "ClockHand task started.");
   }
 }
 

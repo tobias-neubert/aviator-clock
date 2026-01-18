@@ -2,6 +2,9 @@
 #include <stepper/api/StepperMotorState.h>
 #include <cmath>
 #include <stdexcept>
+#include "esp_log.h"
+
+static const char* TAG = "AccelStepperMotor";
 
 // A common invalid pin marker (ensure it's defined if not in a global header)
 #ifndef INVALID_PIN
@@ -18,12 +21,10 @@ namespace stepper
             stepper::api::IStepperController &stepperController,
             int fullStepsPerRevolution,
             stepper::api::IHomingStrategy &homingStrategy,
-            soc::api::ILogger& logger,
             uint8_t enablePin,
             bool enablePinActiveLow) : _stepperController(stepperController),
                                        _fullStepsPerRevolution(fullStepsPerRevolution),
                                        _homingStrategy(homingStrategy),
-                                       _logger(logger),
                                        _enablePin(enablePin),
                                        _isHomed(false),                                     // Motor starts as not homed
                                        _currentSetSpeedDps(100.0),                          // Default speed
@@ -176,7 +177,7 @@ namespace stepper
             else
             {
                 _currentSetSpeedDps = degreesPerSecond;
-                _logger.info("Set speed to %f", degreesPerSecond);
+                ESP_LOGI(TAG, "Set speed to %f", degreesPerSecond);
             }
 
             _stepperController.setMaxSpeed(degreesToSteps(_currentSetSpeedDps));
@@ -268,8 +269,8 @@ namespace stepper
                     _currentState = StepperMotorState::IDLE;
 
                     // Restore operational parameters on the controller
-                    _logger.info(
-                        "AccelStepperMotor: Homing succeeded, setting speed and acceleration to %f and %f", 
+                    ESP_LOGI(TAG,
+                        "Homing succeeded, setting speed and acceleration to %f and %f", 
                         _currentSetSpeedDps, 
                         _currentSetAccelerationDps2);
                     _stepperController.setMaxSpeed(degreesToSteps(_currentSetSpeedDps));

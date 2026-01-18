@@ -5,7 +5,6 @@
 #include <soc/api/ISoc.h>
 #include <soc/api/ITask.h>
 #include "ESP32DigitalInput.h"
-#include "ESP32Logger.h"
 #include "ESP32Sleeper.h"
 #include "NtpTime.h"
 
@@ -36,7 +35,6 @@ namespace soc
             void init(const char *wifiSsid, const char *wifiPassword);
 
             // --- ISoc Interface Implementation ---
-            soc::api::ILogger &getLogger() override;
             soc::api::ITime &getTimeProvider() override;
             soc::api::ISleeper &getSleeper() override;
             std::unique_ptr<soc::api::IDigitalInput> createDigitalInput(
@@ -47,7 +45,6 @@ namespace soc
 
         private:
             // The SoC owns the concrete service implementations.
-            std::unique_ptr<ESP32Logger> m_logger;
             std::unique_ptr<NtpTime> m_timeProvider;
             std::unique_ptr<ESP32Sleeper> m_sleeper;
         };

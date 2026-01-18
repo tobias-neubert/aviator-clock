@@ -3,7 +3,6 @@
 #include <memory>
 #include <string>
 #include "IDigitalInput.h"
-#include "ILogger.h"
 #include "ISleeper.h"
 #include "ITask.h"
 #include "ITime.h"
@@ -23,11 +22,6 @@ namespace soc
         {
         public:
             virtual ~ISoc() = default;
-
-            /**
-             * @brief Gets a reference to the system-wide logger.
-             */
-            virtual ILogger &getLogger() = 0;
 
             /**
              * @brief Gets a reference to the system-wide time provider.

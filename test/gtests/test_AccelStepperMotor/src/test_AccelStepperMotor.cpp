@@ -5,7 +5,6 @@
 // --- Mocks and Class Under Test ---
 #include "StepperControllerMock.h"
 #include "HomingStrategyMock.h"
-#include "LoggerMock.h"
 #include "stepper/accel/AccelStepperMotor.h"
 
 // --- Using declarations ---
@@ -20,7 +19,6 @@ protected:
     // Mocks are now created directly as members.
     stepper::testing::MockStepperController mockStepperController;
     stepper::testing::MockHomingStrategy mockHomingStrategy;
-    soc::testing::LoggerMock loggerMock;
 
     // The object under test.
     std::unique_ptr<AccelStepperMotor> motor;
@@ -42,7 +40,6 @@ protected:
             mockStepperController,
             200 * 16, // fullStepsPerRevolution
             mockHomingStrategy,
-            loggerMock,
             10,  // enablePin
             true // enablePinActiveLow
         );

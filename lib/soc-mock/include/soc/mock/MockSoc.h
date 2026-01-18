@@ -2,7 +2,6 @@
 
 #include <soc/api/ISoc.h>
 #include <soc/mock/MockDigitalInput.h>
-#include <soc/mock/MockLogger.h>
 #include <soc/mock/MockSleeper.h>
 #include <soc/mock/MockTime.h>
 #include <memory>
@@ -25,7 +24,6 @@ namespace soc
             ~MockSoc() override;
 
             // --- ISoc Interface Implementation ---
-            soc::api::ILogger &getLogger() override;
             soc::api::ITime &getTimeProvider() override;
             soc::api::ISleeper &getSleeper() override;
             std::unique_ptr<soc::api::IDigitalInput> createDigitalInput(
@@ -36,7 +34,6 @@ namespace soc
 
         private:
             // The MockSoc owns the mock service implementations.
-            std::unique_ptr<MockLogger> m_logger;
             std::unique_ptr<MockTime> m_timeProvider;
             std::unique_ptr<MockSleeper> m_sleeper;
         };
