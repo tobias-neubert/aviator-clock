@@ -1,6 +1,9 @@
 #include "soc/esp32/NtpTime.h"
 #include <WiFi.h>
 #include "time.h"
+#include "esp_log.h"
+
+static const char* TAG = "NtpTime";
 
 // Define the NTP server to use. "pool.ntp.org" globally or
 // for better regional performance, maybe "de.pool.ntp.org" for Germany.
@@ -25,48 +28,48 @@ namespace soc
         bool NtpTime::init(const char *ssid, const char *password)
         {
             // 1. Connect to WiFi
-            Serial.printf("Connecting to %s ", ssid);
+            ESP_LOGI(TAG, "Connecting to WiFi SSID: %s", ssid);
             WiFi.begin(ssid, password);
 
-            // Wait for connection, with a 15-second timeout
-            int timeout_seconds = 15;
+            // Wait for connection, with a 30-second timeout
+            int timeout_seconds = 30;
             while (WiFi.status() != WL_CONNECTED)
             {
                 delay(500);
-                Serial.print(".");
                 if (timeout_seconds-- <= 0)
                 {
-                    Serial.println("\nFailed to connect to WiFi.");
+                    ESP_LOGE(TAG, "Failed to connect to WiFi.");
                     return false;
                 }
             }
-            Serial.println("\nWiFi connected.");
+            ESP_LOGI(TAG, "WiFi connected.");
 
             // 2. Configure time using timezone and NTP server
             // This function sets up the ESP32 to query the NTP server and apply the timezone rule.
             configTzTime(TIME_ZONE, NTP_SERVER);
 
             // 3. Wait for the time to be synchronized
-            Serial.print("Synchronizing time");
+            ESP_LOGI(TAG, "Synchronizing time with NTP server...");
             struct tm timeinfo;
             // getLocalTime() returns true once time is synced. We'll wait for up to 15 seconds.
             timeout_seconds = 15;
             while (!getLocalTime(&timeinfo))
             {
-                Serial.print(".");
                 delay(500);
                 if (timeout_seconds-- <= 0)
                 {
-                    Serial.println("\nFailed to synchronize time.");
+                    ESP_LOGE(TAG, "Failed to synchronize time.");
                     _isTimeSynced = false;
                     return false;
                 }
             }
-            Serial.println("\nTime synchronized.");
             _isTimeSynced = true;
+            ESP_LOGI(TAG, "Time synchronized successfully.");
 
             // Optional: Print current time
-            Serial.println(&timeinfo, "Current time: %A, %B %d %Y %H:%M:%S");
+            char time_buf[64];
+            strftime(time_buf, sizeof(time_buf), "%A, %B %d %Y %H:%M:%S", &timeinfo);
+            ESP_LOGI(TAG, "Current time: %s", time_buf);
 
             return true;
         }
