@@ -26,3 +26,7 @@ Das Ziel ist der Bau einer physischen Uhr, die von klassischen analogen Fluginst
 ## 4. Aktueller Status
 
 Das Projekt befindet sich in der Migration von einer Single-Loop-Architektur zu einer RTOS-basierten Architektur. Der Migrationsprozess wird in `MIGRATIONSPLAN.md` dokumentiert.
+
+## 5. Technische Dokumentation
+
+Detaillierte technische Spezifikationen, Konzepte und Diagramme (wie z.B. Pinouts oder Homing-Strategien) sind im Verzeichnis [`doc/spcifications`](./doc/specifications) abgelegt.
