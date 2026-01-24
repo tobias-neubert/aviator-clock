@@ -10,7 +10,7 @@
 #include <stepper/api/IHomingStrategy.h>
 #include <stepper/accel/AccelStepperWrapper.h>
 #include <stepper/accel/AccelStepperMotor.h>
-#include <stepper/homing/NoHomingStrategy.h>
+#include <stepper/homing/PreciseOneWayHomingStrategy.h>
 
 // --- Application Includes ---
 #include <aviator-clock/ClockHand.h>
@@ -18,8 +18,14 @@
 // --- Pin Definitions ---
 #define DIR_PIN_HW 12
 #define STEP_PIN_HW 14
-#define ENABLE_PIN_HW 27
+#define HALL_SENSOR_PIN 25
 #define LIMIT_SWITCH_PIN_HW 26
+
+// --- Pin Definitions ---
+#define DIR_PIN_HW 12
+#define STEP_PIN_HW 14
+#define HALL_SENSOR_PIN 25
+#define LIMIT_SWITCH_PIN_HW 26 // Unused in this config, but kept for reference
 
 // --- Motor Configuration ---
 const int EFFECTIVE_STEPS_PER_REVOLUTION = 1600;
@@ -28,9 +34,9 @@ const int EFFECTIVE_STEPS_PER_REVOLUTION = 1600;
 const double DIAL_TOTAL_ACTIVE_ANGLE = 330.0;
 const double DIAL_START_OFFSET_DEGREES = 0.0;
 
-// --- Settings for Sharper Movement ---
-const double SHARP_TICK_SPEED_DPS = 2400.0;
-const double SHARP_TICK_ACCELERATION_DPS2 = 60000.0;
+// --- Settings for Smooth Movement ---
+const double SHARP_TICK_SPEED_DPS = 360.0;
+const double SHARP_TICK_ACCELERATION_DPS2 = 1000.0;
 
 // =========================================================================
 // --- GLOBAL DECLARATIONS ---
@@ -41,7 +47,7 @@ static const char* TAG = "main";
 // one owner of each resource, which simplifies lifecycle management in an RTOS environment.
 std::unique_ptr<soc::api::ISoc> g_soc;
 std::unique_ptr<stepper::api::IStepperController> accelWrapper;
-std::unique_ptr<soc::api::IDigitalInput> limitSwitch;
+std::unique_ptr<soc::api::IDigitalInput> hallSensor;
 std::unique_ptr<stepper::api::IHomingStrategy> homingStrategy;
 std::unique_ptr<aviator_clock::ClockHand> clockHand;
 
@@ -66,17 +72,35 @@ void setup()
 
   // 2. Create hardware-related components
   accelWrapper = std::make_unique<stepper::accel::AccelStepperWrapper>(STEP_PIN_HW, DIR_PIN_HW);
-  limitSwitch = g_soc->createDigitalInput(LIMIT_SWITCH_PIN_HW, true);
+  // Create the digital input for our Hall sensor, configured as active low
+  hallSensor = g_soc->createDigitalInput(HALL_SENSOR_PIN, true /* isActiveLow */);
+
 
   ESP_LOGI(TAG, "Level 0 components created.");
 
-  homingStrategy = std::make_unique<stepper::homing::NoHomingStrategy>();
+  // Configuration for the new Homing Strategy
+  stepper::homing::PreciseOneWayHomingStrategy::Config homingConfig{
+      .homingSpeed = 50.0f,                                   // Very slow speed for precision
+      .homingAcceleration = 125.0f,                           // Gentle acceleration
+      .maxHomingTravel = EFFECTIVE_STEPS_PER_REVOLUTION * 2,  // Travel max 2 revolutions
+      .moveDirection = 1,                                     // +1 for clockwise
+      .backOffDistance = 100                                  // Steps to move if starting on switch
+  };
+
+  // Instantiate the new PreciseOneWayHomingStrategy
+  homingStrategy = std::make_unique<stepper::homing::PreciseOneWayHomingStrategy>(
+      *accelWrapper,
+      *hallSensor,
+      homingConfig);
 
   ESP_LOGI(TAG, "Level 1 components (HomingStrategy) created.");
 
+  // Note: The enable pin argument is omitted, so the library will not control any enable pin.
+  // This matches the hardware setup where the driver's EN pin is permanently grounded.
   auto motor = std::make_unique<stepper::accel::AccelStepperMotor>(
-      *accelWrapper, EFFECTIVE_STEPS_PER_REVOLUTION, *homingStrategy,
-      ENABLE_PIN_HW, true);
+      *accelWrapper,
+      EFFECTIVE_STEPS_PER_REVOLUTION,
+      *homingStrategy);
 
   ESP_LOGI(TAG, "Level 2 components (Motor) created.");
 

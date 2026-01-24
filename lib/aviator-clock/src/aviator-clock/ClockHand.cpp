@@ -72,6 +72,8 @@ namespace aviator_clock
 
   void ClockHand::start()
   {
+    ESP_LOGI(TAG, "ClockHand::start() - Starting task for %s hand.",
+                 _type == HandType::SECOND ? "SECOND" : "OTHER");
     if (_task)
     {
       ESP_LOGW(TAG, "ClockHand::start() called but task is already running.");
@@ -119,9 +121,8 @@ namespace aviator_clock
     ESP_LOGD(TAG, "Homing: Waiting for motor to home...");
     while (!_shouldStop.load() && (_stepperMotor->needsHoming() || _stepperMotor->isBusy()))
     {
-      ESP_LOGV(TAG, "Homing: In progress (needsHoming=%d, isBusy=%d, shouldStop=%d).", _stepperMotor->needsHoming(), _stepperMotor->isBusy(), _shouldStop.load());
-      _stepperMotor->update();
-      sleeper.sleep(5);
+_stepperMotor->update();
+      sleeper.sleep(1);
     }
 
     if (_shouldStop.load())
@@ -204,7 +205,7 @@ namespace aviator_clock
       soc::api::ITime::TimeComponents time;
       if (_timeProvider.asTimeComponents(time))
       {
-        ESP_LOGV(TAG, "Ticking Loop: Time components retrieved (H:%d, M:%d, S:%d).", time.hours, time.minutes, time.seconds);
+        ESP_LOGV(TAG, "Ticking Loop: Time components retrieved (H:%lu, M:%lu, S:%lu).", time.hours, time.minutes, time.seconds);
         int currentUnit = 0;
         switch (_type)
         {
