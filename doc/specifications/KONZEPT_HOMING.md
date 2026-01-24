@@ -7,105 +7,93 @@ Dieses Dokument beschreibt die offizielle Strategie und Methode zum Finden der N
 Um Mehrdeutigkeiten zu vermeiden, wird das folgende Koordinatensystem für alle Zeigerbewegungen festgelegt:
 
 - **Blickrichtung:** Die Beschreibung gilt bei frontaler Betrachtung des Ziffernblattes.
-- **Nullpunkt (0°):** Die Position, bei der der Zeiger exakt senkrecht nach unten zeigt (entspricht der 6-Uhr-Position einer normalen Uhr).
+- **Nullpunkt (0°):** Die Position, die durch den Homing-Sensor definiert wird. Idealerweise wird der Sensor so montiert, dass dies der 12-Uhr-Position entspricht.
 - **Drehrichtung:**
     - **Positive Winkel (+)** entsprechen einer Drehung im **Uhrzeigersinn (CW)**.
     - **Negative Winkel (-)** entsprechen einer Drehung **gegen den Uhrzeigersinn (CCW)**.
-- **Beispiel:** Eine Position von `+10°` bedeutet, der Zeiger hat sich von der senkrechten unteren Position um 10 Grad im Uhrzeigersinn gedreht (nach **rechts**, aus Sicht des Betrachters).
 
-## 2. Gewählte Homing- und Bewegungsstrategie
+## 2. Gewählte Homing-Strategie
 
-Als Homing-Methode wird ein **magnetischer Sensor (Hall-Sensor)** verwendet. Die übergeordnete Bewegungsstrategie für alle Zeiger ist die **ausschließliche Drehung im Uhrzeigersinn (CW)**. Dies vereinfacht die Ansteuerung maximal und eliminiert jeglichen Einfluss von Getriebespiel (Backlash).
+Als Homing-Methode wird ein **magnetischer Sensor (Hall-Sensor)** verwendet. Die implementierte Strategie (`PreciseOneWayHomingStrategy`) führt eine präzise, einstufige Referenzfahrt durch.
 
 ## 3. Ablauf der Logik
 
 ### 3.1. Referenzfahrt (Homing)
 
-Die Referenzfahrt wird bei jedem Systemstart ausgeführt und besteht aus einer einzigen, kontinuierlichen Bewegung, die alle Startbedingungen abdeckt.
+Die Referenzfahrt wird bei jedem Systemstart ausgeführt, um eine verlässliche Nullposition zu finden.
 
-1.  **Start der Bewegung:** Der Zeiger beginnt, sich langsam im Uhrzeigersinn (CW) zu drehen.
-2.  **Warten auf Sensor:** Die Bewegung wird fortgesetzt, bis der Hall-Sensor durch den Magneten aktiviert wird.
-    - *Anmerkung: Dieser Ansatz funktioniert für alle Start-Szenarien. Falls der Sensor beim Start bereits aktiv ist, dreht der Zeiger einfach eine volle 360°-Umdrehung, bis er den Sensor erneut erreicht.*
-3.  **Home-Position erkennen:** Sobald der Sensor aktiviert wird, wird der Motor **sofort gestoppt**.
-4.  **Nullpunkt setzen:** Die interne Schritt-Zählung des Motors wird an diesem Punkt auf `0` gesetzt. Diese Position gilt ab sofort als der absolute Referenz-Nullpunkt.
+1.  **Prüfung bei Start:** Die Strategie prüft zuerst, ob der Hall-Sensor bereits beim Start aktiv ist.
+    - **Falls ja (Start auf dem Sensor):** Der Motor bewegt den Zeiger zuerst ein kurzes, definiertes Stück vom Sensor weg (gegen die Suchrichtung), bis der Sensor inaktiv wird.
+2.  **Start der Suchfahrt:** Der Zeiger beginnt, sich langsam in einer vordefinierten Richtung (im Uhrzeigersinn) zu drehen.
+3.  **Sensor-Erkennung:** Die Bewegung wird fortgesetzt, bis der Hall-Sensor durch den Magneten aktiviert wird.
+4.  **Stopp-Befehl:** Sobald der Sensor aktiviert wird, sendet die Steuerung einen `stop()`-Befehl. Der Motor bremst daraufhin kontrolliert bis zum Stillstand ab. Er hält nicht instantan an, sondern hat einen kurzen, physikalisch bedingten Bremsweg (Overshoot).
+5.  **Nullpunkt setzen:** Die finale Position, an der der Motor nach dem Abbremsen zum Stehen kommt, wird als logischer Nullpunkt (`0`) im Koordinatensystem des Motors gesetzt.
 
 ### 3.2. Anfahren von Zielpositionen
 
-Alle Bewegungen zu einer neuen Zielposition erfolgen **ausschließlich im Uhrzeigersinn (CW)**.
-
-- **Logik:** Um von einer `aktuellenPosition` zu einer `zielPosition` zu gelangen, wird immer nur vorwärts gefahren.
-- **Beispiel:** Soll der Zeiger von 90° auf 45° bewegt werden, dreht er nicht 45° zurück, sondern 315° vorwärts (über 180°, 270°, 0° hinweg bis zur 45°-Marke).
-- **Vorteil:** Die Ansteuerungslogik benötigt keine Fallunterscheidungen für die Richtung, was sie extrem einfach und robust macht.
+Die Logik zum Anfahren von Zielpositionen nach dem Homing ist in der `ClockHand`-Klasse implementiert und nicht Teil der Homing-Strategie selbst.
 
 ## 4. Hardware-Implementierung im Detail
 
-Dieses Kapitel dient als Referenz für die Auswahl und den Einbau der Hardware-Komponenten.
+Dieses Kapitel dient als Referenz für die Auswahl und den Einbau der Hardware-Komponenten, basierend auf den Erkenntnissen aus der Praxis.
 
 ### 4.1. Hall-Effekt-Sensor
 
 Die Auswahl des richtigen Sensortyps ist entscheidend.
-- **Typ:** Es muss ein **digitaler, unipolarer Hall-Effekt-Sensor (Switch)** sein.
-    - **Digital:** Liefert ein klares An/Aus-Signal (HIGH/LOW), das der ESP32 direkt verarbeiten kann. Analoge/lineare Sensoren sind hierfür ungeeignet.
-    - **Unipolar:** Reagiert nur auf einen Magnetpol (z.B. Südpol). Dies sorgt für einen präzisen Schaltpunkt und macht den Aufbau unempfindlicher für magnetische Störfelder.
-- **Betriebsspannung:** Der Sensor muss für die **3.3V** des ESP32 spezifiziert sein.
-- **Beispiel-Bauteil:** Ein mögliches Bauteil ist der [Honeywell SS460S](https://www.reichelt.de/de/de/shop/produkt/hallsensor_unipolar_digital_to-92-151345).
-    - **WICHTIGER HINWEIS:** Laut Datenblatt hat dieser Sensor eine Mindestbetriebsspannung von **3.8V**. Er ist daher **nicht ideal** für den direkten 3.3V-Betrieb mit dem ESP32 und seine Funktion ist nicht garantiert. Es wird empfohlen, einen Sensor zu wählen, dessen Betriebsspannungsbereich 3.3V explizit einschließt (z.B. die **Allegro A110x Serie**).
+- **Typ:** Ein **digitaler, unipolarer Hall-Effekt-Sensor (Switch)**, idealerweise auf einem Modul verbaut (z.B. "MH-Sensor Series").
+    - **Digital:** Liefert ein klares An/Aus-Signal (HIGH/LOW).
+    - **Unipolar:** Reagiert nur auf einen Magnetpol, was für einen präzisen Schaltpunkt sorgt.
+- **Betriebsspannung:** Die stabilste Lösung wurde mit einem **5V-Modul** erzielt. 3.3V-Sensoren sind oft nicht spezifikationsgemäß an einem 3.3V-ESP32 zu betreiben und können zu Fehlern führen.
+- **Beispiel-Bauteil:** Ein Modul mit einem `A3144`-Sensor oder Ähnlichem.
 
 ### 4.2. Magnet
 
-- **Typ:** Ein kleiner **Neodym-Scheibenmagnet (NdFeB)** mit **axialer** Magnetisierung (Pole auf den flachen Seiten).
-- **Größe:** Für eine hohe Präzision ist ein kleiner Magnet ideal, da er ein schärfer definiertes Magnetfeld erzeugt. Eine Größe von ca. **3mm Durchmesser und 1-2mm Höhe** ist empfehlenswert.
-- **Stärke:** Eine Standard-Güte wie N35 oder N42 ist völlig ausreichend.
+- **Typ:** Ein kleiner **Neodym-Zylindermagnet (NdFeB)**.
+- **Magnetisierung:** Die Magnetisierung kann **axial** (Pole an den flachen Enden) oder **radial** (Pole an den Seiten) sein. Es ist entscheidend, durch Tests die korrekte Ausrichtung für den Sensor zu finden.
+- **Größe:** Kleine Magnete (z.B. 1-3mm) erzeugen ein scharfes Feld für hohe Präzision.
 
 ### 4.3. Mechanische Montage
 
-Die Präzision des gesamten Systems hängt entscheidend von der sauberen mechanischen Montage ab.
 - **Prinzip:** Eine mit der Motorachse rotierende Scheibe trägt den Magneten. Der Hall-Sensor ist feststehend am Gehäuse montiert.
-- **Abstand:** Der Luftspalt zwischen Magnet und Sensor sollte so gering wie möglich sein (ca. 1-2 mm), ohne dass es zu einer Kollision kommen kann.
-- **Ausrichtung für höchste Präzision:** Die beste Schärfe des Signals wird erreicht, wenn der Magnet **seitlich an der flachen Vorderseite des Sensors vorbeigeführt** wird. Eine frontale Annäherung an den Sensor sollte vermieden werden. Diese "streifende" Bewegung erzeugt die schnellste Feldänderung und damit den wiederholgenauesten Schaltimpuls.
+- **Abstand:** Der Luftspalt zwischen Magnet und Sensor muss **so gering wie nur möglich** sein (weniger als 1-2 mm). Jeder Bruchteil eines Millimeters zählt.
+- **Ausrichtung:** Die Position und Ausrichtung von Magnet und Sensor zueinander müssen experimentell ermittelt werden, um eine zuverlässige Schaltung zu gewährleisten.
 
-### 4.4. Elektrische Beschaltung (Pull-up-Widerstand)
+### 4.4. Elektrische Beschaltung (Spannungsteiler für 5V-Sensor)
 
-Die meisten Hall-Sensoren (auch die empfohlenen) besitzen einen **"Open Collector"-Ausgang**. Das bedeutet, der Sensor kann den Ausgangspin aktiv nur mit Ground (LOW) verbinden. Er kann ihn aber nicht aktiv auf 3.3V (HIGH) setzen. Lässt man den Pin unbeschaltet, "schwebt" er in einem undefinierten Zustand, wenn der Sensor inaktiv ist.
-
-Um dies zu verhindern, wird ein **Pull-up-Widerstand** benötigt. Er sorgt für einen definierten HIGH-Zustand, wenn der Sensor inaktiv ist.
+Da wir einen 5V-Sensor an einem 3.3V-Mikrocontroller (ESP32) betreiben, ist ein **Spannungsteiler am `DO` (Digital Out) Pin des Sensormoduls zwingend erforderlich**, um den GPIO-Pin des ESP32 nicht zu beschädigen.
 
 **Funktionsweise:**
-1.  **Magnet ist weit weg:** Der Sensor ist inaktiv. Der Pull-up-Widerstand zieht die Spannung am Pin sanft auf 3.3V. Der ESP32 liest ein klares **HIGH**.
-2.  **Magnet ist nah:** Der Sensor wird aktiv und schaltet eine starke Verbindung nach Ground. Diese Verbindung ist stärker als der schwache Pull-up-Widerstand und zieht die Spannung auf 0V. Der ESP32 liest ein klares **LOW**.
+Das 5V-Ausgangssignal des Sensors wird auf ein für den ESP32 sicheres 3.3V-Niveau reduziert.
+1.  **Sensor inaktiv:** Der Sensor-Ausgang ist HIGH (5V). Der Spannungsteiler reduziert dies auf ca. 2.5V - 3.3V. Der ESP32 liest ein klares **HIGH**.
+2.  **Sensor aktiv:** Der Sensor-Ausgang ist LOW (0V). Der Spannungsteiler gibt die 0V direkt weiter. Der ESP32 liest ein klares **LOW**.
 
-**Schaltungs-Schema:**
+**Schaltungs-Schema (mit zwei 10kΩ-Widerständen):**
 ```
-      +3.3V
-        |
-       | |
-       | | 10 kΩ (Pull-up)
-       | |
-        |
-        +------> GPIO Pin am ESP32
-        |
-    +-------+
-    | Sensor|-- (Ausgang)
-    +-------+
-        |
-       GND
+    Sensor-Modul                        ESP32
+   +------------+
+   |        VCC |----------------------> 5V
+   |        GND |----------------------> GND
+   |            |
+   |         DO |---+------------------> GPIO Pin (z.B. 25)
+   +------------+   |
+                    |
+                   | |
+                   | | 10 kΩ (Pull-down zum Spannungsteiler)
+                   | |
+                    |
+                   GND
 ```
+**Wichtiger Hinweis:** Das obige Schema ist vereinfacht. Ein Pull-up-Widerstand (ebenfalls 10kΩ) von DO nach VCC (5V) ist oft bereits auf dem Sensormodul vorhanden. Wenn nicht, muss er hinzugefügt werden, um den Spannungsteiler zu vervollständigen. Die Kombination aus 10kΩ Pull-up und 10kΩ Pull-down halbiert die Spannung von 5V auf 2.5V.
 
 ## 5. Evaluierte Alternativen
 
 Andere Methoden wurden in Betracht gezogen, aber aus folgenden Gründen verworfen:
 
 ### 5.1. Mechanischer Endschalter
-
-- **Prinzip:** Ein Nocken auf der Motorachse betätigt einmal pro Umdrehung einen Mikroschalter.
-- **Bewertung:** Diese Methode ist funktional, erfordert aber die präzise Fertigung und Montage eines Nockens. Zudem unterliegt sie mechanischem Verschleiß. Die gewählte berührungslose magnetische Lösung ist hier langfristig überlegen.
+- **Bewertung:** Funktional, aber erfordert mechanische Präzision und unterliegt Verschleiß.
 
 ### 5.2. Optischer Sensor (Gabellichtschranke)
-
-- **Prinzip:** Eine Lochscheibe auf der Achse unterbricht einmal pro Umdrehung den Strahl einer Lichtschranke.
-- **Bewertung:** Eine exzellente, hochpräzise Alternative zur magnetischen Lösung. Die finale Entscheidung für den Hall-Sensor fiel aufgrund seiner höheren Robustheit gegenüber Staub und potenziell einfacherer Montage im Gehäuse.
+- **Bewertung:** Exzellente Präzision, aber empfindlicher gegenüber Staub.
 
 ### 5.3. Sensorless Homing (StallGuard™)
-
-- **Prinzip:** Erkennung des Motorstillstands an einem harten Anschlag über die TMC2209-Treiber.
-- **Bewertung:** Ist für eine 360°-Anwendung nicht geeignet und die erreichte Genauigkeit und Wiederholbarkeit wurde generell als **unzureichend** für eine präzise Zeigerdarstellung bewertet.
+- **Bewertung:** Für 360°-Anwendungen ungeeignet und für eine präzise Zeigerdarstellung zu ungenau.
