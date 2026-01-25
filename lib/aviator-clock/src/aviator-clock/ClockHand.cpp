@@ -211,9 +211,56 @@ namespace aviator_clock
           ESP_LOGD(TAG, "Ticking Loop: Value changed from %d to %d.", _lastDisplayValue, targetDisplayValue);
           if (!_stepperMotor->isBusy())
           {
-            moveToDisplayValue(targetDisplayValue);
+            int maxUnits = (_type == HandType::HOUR) ? 12 : 60;
+            bool isWrapAround = (_lastDisplayValue == maxUnits - 1) && (targetDisplayValue == 0);
+
+            // SONDERBEHANDLUNG FÜR DEN ÜBERGANG VON 59 auf 0 (bzw. 11 auf 0)
+            // WARUM IST DAS NÖTIG?
+            // Die Stepper-Bibliothek (AccelStepper) denkt nicht in Kreisen, sondern auf einer
+            // unendlich langen, linearen Achse von "Schritten" (wie ein Maßband). Wenn der
+            // Zeiger bei Sekunde 59 steht, ist sein interner Zähler auf einem hohen Wert.
+            // Der Befehl, zu Sekunde 0 zu fahren, bedeutet für die Bibliothek "gehe zu Schritt 0".
+            // Der kürzeste Weg dahin ist rückwärts, was zur unerwünschten Bewegung führt.
+            if (isWrapAround)
+            {
+              ESP_LOGI(TAG, "Ticking Loop: Wrap-around detected. Performing fast clockwise jump.");
+              
+              // SCHRITT 1: Sprung über die Lücke im Uhrzeigersinn erzwingen.
+              // Wir geben als Ziel 360 Grad an. Das ist für den Motor die gleiche physische
+              // Position wie 0 Grad, zwingt ihn aber, den vollen Weg im Uhrzeigersinn zu nehmen,
+              // um von seiner aktuellen Position (~325 Grad) dorthin zu gelangen.
+              const double JUMP_SPEED_MULTIPLIER = 2.5;
+              _stepperMotor->setSpeed(_motorSpeedDps * JUMP_SPEED_MULTIPLIER);
+              _stepperMotor->moveToAbsolute(360.0);
+
+              // SCHRITT 2: Warten, bis die Bewegung abgeschlossen ist.
+              while (!_shouldStop.load() && _stepperMotor->isBusy())
+              {
+                _stepperMotor->update();
+                sleeper.sleep(1);
+              }
+
+              // Geschwindigkeit wieder auf den Normalwert zurücksetzen.
+              _stepperMotor->setSpeed(_motorSpeedDps);
+
+              // SCHRITT 3: Interne Position des Motors zurücksetzen.
+              // Nachdem der Sprung vollendet ist, "denkt" der Motor, er sei bei 360 Grad.
+              // Wir müssen ihm sagen: "Diese Position ist ab sofort wieder der Anfang (0 Grad)."
+              // Ohne diesen Reset wäre die nächste Bewegung (zu Sekunde 1) falsch.
+              if (!_shouldStop.load()) {
+                ESP_LOGI(TAG, "Ticking Loop: Resetting motor position to 0 after jump.");
+                _stepperMotor->setCurrentPositionDegrees(0.0);
+              }
+            }
+            else
+            {
+              // Für alle "normalen" Bewegungen (z.B. 25->26) die Standard-Logik verwenden.
+              moveToDisplayValue(targetDisplayValue);
+            }
             _lastDisplayValue = targetDisplayValue;
-          } else {
+          }
+          else
+          {
             ESP_LOGD(TAG, "Ticking Loop: Motor busy, skipping move for value %d.", targetDisplayValue);
           }
         }

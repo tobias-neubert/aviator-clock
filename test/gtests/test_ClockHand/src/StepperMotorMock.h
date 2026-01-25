@@ -20,6 +20,7 @@ public:
     MOCK_METHOD(void, setSpeed, (double degreesPerSecond), (override));
     MOCK_METHOD(void, setAcceleration, (double degreesPerSecondSquared), (override));
     MOCK_METHOD(double, getCurrentPositionDegrees, (), (const, override));
+    MOCK_METHOD(void, setCurrentPositionDegrees, (double degrees), (override));
     MOCK_METHOD(stepper::api::StepperMotorState, getState, (), (const, override));
     MOCK_METHOD(void, enable, (), (override));
     MOCK_METHOD(void, disable, (), (override));

@@ -80,6 +80,18 @@ public:
      */
     virtual double getCurrentPositionDegrees() const = 0;
 
+    /**
+     * @brief Immediately overrides the motor's current internal position.
+     *
+     * This is an advanced function for forcibly defining the current position in degrees
+     * without performing a physical move. It's useful for resetting the motor's
+     * reference after a wrap-around move (e.g., moving from 359 degrees to a target of
+     * 360, and then resetting the position to 0).
+     *
+     * @param degrees The new absolute position in degrees to be set.
+     */
+    virtual void setCurrentPositionDegrees(double degrees) = 0;
+
     virtual stepper::api::StepperMotorState getState() const = 0;
 
     /**

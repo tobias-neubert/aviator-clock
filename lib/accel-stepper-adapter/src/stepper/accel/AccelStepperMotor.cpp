@@ -205,6 +205,17 @@ namespace stepper
             return stepsToDegrees(_stepperController.getCurrentPosition());
         }
 
+        void AccelStepperMotor::setCurrentPositionDegrees(double degrees)
+        {
+            if (!_isHomed)
+            {
+                // Or maybe just log a warning? Forcing a position on an unhomed motor is tricky.
+                // For this project's use case (resetting after a wrap), it's assumed to be homed.
+                ESP_LOGW(TAG, "setCurrentPositionDegrees called on an un-homed motor.");
+            }
+            _stepperController.setCurrentPosition(degreesToSteps(degrees));
+        }
+
         void AccelStepperMotor::enable()
         {
             if (_enablePin != INVALID_PIN)

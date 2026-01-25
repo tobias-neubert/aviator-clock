@@ -34,6 +34,7 @@ namespace stepper
             void setSpeed(double degreesPerSecond) override;
             void setAcceleration(double degreesPerSecondSquared) override;
             double getCurrentPositionDegrees() const override;
+            void setCurrentPositionDegrees(double degrees) override;
             void enable() override;
             void disable() override;
             stepper::api::StepperMotorState getState() const override;
