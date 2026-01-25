@@ -19,7 +19,7 @@ namespace aviator_clock
         _totalAngleForDial(totalAngleForDial),
         _motorSpeedDps(motorSpeedDps),
         _motorAccelerationDps2(motorAccelerationDps2),
-        _lastUnitProcessed(-1)
+        _lastDisplayValue(-1)
   {
     if (_stepperMotor == nullptr)
     {
@@ -54,9 +54,6 @@ namespace aviator_clock
     _shouldStop = true; // Signal task to stop
     if (_task)
     {
-      // The destruction of the ITask unique_ptr will join the thread.
-      // This happens automatically when clockHand is destroyed.
-      // Calling reset() here ensures it happens before the motor is disabled.
       _task.reset();
     }
     if (!_stepperMotor)
@@ -80,7 +77,7 @@ namespace aviator_clock
     }
     auto task_logic = [this]()
     { this->taskLoop(); };
-    std::string task_name = "hand_task"; // Simplified name
+    std::string task_name = "hand_task";
     ESP_LOGI(TAG, "ClockHand::start() - Creating task '%s'.", task_name.c_str());
     _task = _soc.createTask(task_logic, task_name, 4096 * 2);
   }
@@ -113,10 +110,9 @@ namespace aviator_clock
     if (!_stepperMotor->home())
     {
       ESP_LOGE(TAG, "Homing: Failed to send homing command.");
-      return false; // Homing couldn't even start
+      return false;
     }
 
-    // Wait for homing to complete
     ESP_LOGD(TAG, "Homing: Waiting for motor to home...");
     while (!_shouldStop.load() && (_stepperMotor->needsHoming() || _stepperMotor->isBusy()))
     {
@@ -127,7 +123,7 @@ namespace aviator_clock
     if (_shouldStop.load())
     {
       ESP_LOGW(TAG, "Homing: Task stopped during homing sequence.");
-      return false; // Task was stopped during homing
+      return false;
     }
 
     if (_stepperMotor->isHomingFailed())
@@ -148,34 +144,29 @@ namespace aviator_clock
     if (!_timeProvider.asTimeComponents(currentTime))
     {
       ESP_LOGE(TAG, "Initial Position: Could not get current time components.");
-      return false; // Cannot set initial position without time
+      return false;
     }
 
-    int currentUnit = 0;
+    int targetDisplayValue = 0;
     switch (_type)
     {
     case HandType::HOUR:
-      currentUnit = currentTime.hours % 12;
-      ESP_LOGD(TAG, "Initial Position: Current hour unit is %d.", currentUnit);
+      targetDisplayValue = currentTime.hours % 12;
       break;
     case HandType::MINUTE:
-      currentUnit = currentTime.minutes;
-      ESP_LOGD(TAG, "Initial Position: Current minute unit is %d.", currentUnit);
+      targetDisplayValue = currentTime.minutes;
       break;
     case HandType::SECOND:
-      currentUnit = currentTime.seconds;
-      ESP_LOGD(TAG, "Initial Position: Current second unit is %d.", currentUnit);
+      targetDisplayValue = currentTime.seconds;
       break;
     }
-    ESP_LOGD(TAG, "Initial Position: Calling moveToUnit for unit %d.", currentUnit);
-    moveToUnit(currentUnit);
-    _lastUnitProcessed = currentUnit;
+    ESP_LOGD(TAG, "Initial Position: Moving to %d.", targetDisplayValue);
+    moveToDisplayValue(targetDisplayValue);
+    _lastDisplayValue = targetDisplayValue;
 
-    // Wait for the move to complete
     ESP_LOGD(TAG, "Initial Position: Waiting for initial move to complete.");
     while (!_shouldStop.load() && _stepperMotor->isBusy())
     {
-      ESP_LOGV(TAG, "Initial Position: Waiting for move (isBusy=%d, shouldStop=%d).", _stepperMotor->isBusy(), _shouldStop.load());
       _stepperMotor->update();
       sleeper.sleep(5);
     }
@@ -183,10 +174,10 @@ namespace aviator_clock
     if (_shouldStop.load())
     {
       ESP_LOGW(TAG, "Initial Position: Task stopped during initial move.");
-      return false; // Task was stopped during the initial move
+      return false;
     }
 
-    ESP_LOGI(TAG, "Initial Position: Initial position set to %d.", currentUnit);
+    ESP_LOGI(TAG, "Initial Position: Initial position set to %d.", targetDisplayValue);
     return true;
   }
 
@@ -196,70 +187,64 @@ namespace aviator_clock
     ESP_LOGI(TAG, "Ticking Loop: Entering normal operation loop.");
     while (!_shouldStop.load())
     {
-      ESP_LOGV(TAG, "Ticking Loop: Iteration (shouldStop=%d).", _shouldStop.load());
-      // Always call update for the motor
-      ESP_LOGV(TAG, "Ticking Loop: Motor update called.");
       _stepperMotor->update();
 
       soc::api::ITime::TimeComponents time;
       if (_timeProvider.asTimeComponents(time))
       {
-        ESP_LOGV(TAG, "Ticking Loop: Time components retrieved (H:%lu, M:%lu, S:%lu).", time.hours, time.minutes, time.seconds);
-        int currentUnit = 0;
+        int targetDisplayValue = 0;
         switch (_type)
         {
         case HandType::HOUR:
-          currentUnit = time.hours % 12;
+          targetDisplayValue = time.hours % 12;
           break;
         case HandType::MINUTE:
-          currentUnit = time.minutes;
+          targetDisplayValue = time.minutes;
           break;
         case HandType::SECOND:
-          currentUnit = time.seconds;
+          targetDisplayValue = time.seconds;
           break;
         }
 
-        if (currentUnit != _lastUnitProcessed)
+        if (targetDisplayValue != _lastDisplayValue)
         {
-          ESP_LOGD(TAG, "Ticking Loop: Unit changed from %d to %d.", _lastUnitProcessed, currentUnit);
+          ESP_LOGD(TAG, "Ticking Loop: Value changed from %d to %d.", _lastDisplayValue, targetDisplayValue);
           if (!_stepperMotor->isBusy())
           {
-            ESP_LOGD(TAG, "Ticking Loop: Motor not busy, moving to new unit %d.", currentUnit);
-            moveToUnit(currentUnit);
-            _lastUnitProcessed = currentUnit;
+            moveToDisplayValue(targetDisplayValue);
+            _lastDisplayValue = targetDisplayValue;
           } else {
-            ESP_LOGD(TAG, "Ticking Loop: Motor busy, skipping move for unit %d.", currentUnit);
+            ESP_LOGD(TAG, "Ticking Loop: Motor busy, skipping move for value %d.", targetDisplayValue);
           }
         }
       } else {
         ESP_LOGE(TAG, "Ticking Loop: Could not get time components.");
       }
-      // Sleep to yield CPU. A short sleep keeps motor updates frequent.
       sleeper.sleep(1);
     }
     ESP_LOGI(TAG, "Ticking Loop: Exiting normal operation loop.");
   }
 
-  void ClockHand::moveToUnit(int unit)
+  void ClockHand::moveToDisplayValue(int value)
   {
     if (!_stepperMotor)
     {
-        ESP_LOGE(TAG, "MoveToUnit: No stepper motor available.");
+        ESP_LOGE(TAG, "moveToDisplayValue: No stepper motor available.");
         return;
     }
 
-    int unitForCalc = unit;
-    if (_type == HandType::HOUR && unit == 0)
+    int valueForCalc = value;
+    if (_type == HandType::HOUR && value == 0)
     {
-      unitForCalc = 12;
+      valueForCalc = 12;
     }
 
-    double targetAngle = (static_cast<double>(unitForCalc) * _degreesPerUnit);
+    double targetAngle = (static_cast<double>(valueForCalc) * _degreesPerUnit);
     if (!_stepperMotor->moveToAbsolute(targetAngle))
     {
-      ESP_LOGE(TAG, "MoveToUnit: moveToAbsolute command failed for unit %d (Angle: %.2f).", unit, targetAngle);
+      ESP_LOGE(TAG, "moveToDisplayValue: command failed for value %d (Angle: %.2f).", value, targetAngle);
     } else {
-      ESP_LOGI(TAG, "MoveToUnit: Move command issued for unit %d (Angle: %.2f).", unit, targetAngle);
+      ESP_LOGI(TAG, "moveToDisplayValue: command issued for value %d (Angle: %.2f).", value, targetAngle);
     }
   }
 } // namespace aviator_clock

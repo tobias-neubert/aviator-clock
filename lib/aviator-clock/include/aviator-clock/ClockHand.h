@@ -36,7 +36,7 @@ namespace aviator_clock
      * @brief The main task loop with simplified, blocking-style logic.
      */
     void taskLoop();
-    void moveToUnit(int unit);
+    void moveToDisplayValue(int value);
     bool runHomingSequence();
     bool setInitialPosition();
     void runTickingLoop();
@@ -51,7 +51,7 @@ namespace aviator_clock
 
     double _totalAngleForDial;
     double _degreesPerUnit;
-    int _lastUnitProcessed;
+    int _lastDisplayValue;
     double _motorSpeedDps;
     double _motorAccelerationDps2;
   };
