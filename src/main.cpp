@@ -19,7 +19,6 @@
 #define DIR_PIN_HW 12
 #define STEP_PIN_HW 14
 #define HALL_SENSOR_PIN 25
-#define LIMIT_SWITCH_PIN_HW 26 // Unused in this config, but kept for reference
 
 // --- Motor Configuration ---
 const int EFFECTIVE_STEPS_PER_REVOLUTION = 1600;
