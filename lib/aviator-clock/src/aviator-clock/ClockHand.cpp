@@ -225,7 +225,7 @@ namespace aviator_clock
     ESP_LOGI(TAG, "Ticking Loop: Exiting normal operation loop.");
   }
 
-  void ClockHand::moveToDisplayValue(int value)
+  void ClockHand::moveToDisplayValue(int displayValue)
   {
     if (!_stepperMotor)
     {
@@ -233,8 +233,8 @@ namespace aviator_clock
         return;
     }
 
-    int valueForCalc = value;
-    if (_type == HandType::HOUR && value == 0)
+    int valueForCalc = displayValue;
+    if (_type == HandType::HOUR && displayValue == 0)
     {
       valueForCalc = 12;
     }
@@ -242,9 +242,9 @@ namespace aviator_clock
     double targetAngle = (static_cast<double>(valueForCalc) * _degreesPerUnit);
     if (!_stepperMotor->moveToAbsolute(targetAngle))
     {
-      ESP_LOGE(TAG, "moveToDisplayValue: command failed for value %d (Angle: %.2f).", value, targetAngle);
+      ESP_LOGE(TAG, "moveToDisplayValue: command failed for value %d (Angle: %.2f).", displayValue, targetAngle);
     } else {
-      ESP_LOGI(TAG, "moveToDisplayValue: command issued for value %d (Angle: %.2f).", value, targetAngle);
+      ESP_LOGI(TAG, "moveToDisplayValue: command issued for value %d (Angle: %.2f).", displayValue, targetAngle);
     }
   }
 } // namespace aviator_clock
