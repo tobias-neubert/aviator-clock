@@ -1,6 +1,5 @@
 #include "stepper/homing/PreciseOneWayHomingStrategy.h"
 #include "esp_log.h"
-#include "Arduino.h" // Temporarily included for potential future digitalWrite debugging.
 
 #ifndef BUILTIN_LED
 #define BUILTIN_LED 2 // Define BUILTIN_LED for potential future debugging use.

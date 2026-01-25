@@ -9,7 +9,7 @@ namespace aviator_clock
 
   ClockHand::ClockHand(HandType type, soc::api::ISoc &soc,
                        std::unique_ptr<IStepperMotor> &&stepperMotor,
-                       double totalAngleForDial, double dialStartOffsetDegrees,
+                       double totalAngleForDial,
                        double motorSpeedDps, double motorAccelerationDps2)
       : _type(type),
         _soc(soc),
@@ -17,7 +17,6 @@ namespace aviator_clock
         _stepperMotor(std::move(stepperMotor)),
         _shouldStop(false),
         _totalAngleForDial(totalAngleForDial),
-        _dialStartOffsetDegrees(dialStartOffsetDegrees),
         _motorSpeedDps(motorSpeedDps),
         _motorAccelerationDps2(motorAccelerationDps2),
         _lastUnitProcessed(-1)
@@ -121,7 +120,7 @@ namespace aviator_clock
     ESP_LOGD(TAG, "Homing: Waiting for motor to home...");
     while (!_shouldStop.load() && (_stepperMotor->needsHoming() || _stepperMotor->isBusy()))
     {
-_stepperMotor->update();
+      _stepperMotor->update();
       sleeper.sleep(1);
     }
 
@@ -255,9 +254,7 @@ _stepperMotor->update();
       unitForCalc = 12;
     }
 
-    double targetAngle = _dialStartOffsetDegrees + (static_cast<double>(unitForCalc) * _degreesPerUnit);
-
-    ESP_LOGD(TAG, "MoveToUnit: Moving to unit %d (Angle: %.2f)", unit, targetAngle);
+    double targetAngle = (static_cast<double>(unitForCalc) * _degreesPerUnit);
     if (!_stepperMotor->moveToAbsolute(targetAngle))
     {
       ESP_LOGE(TAG, "MoveToUnit: moveToAbsolute command failed for unit %d (Angle: %.2f).", unit, targetAngle);

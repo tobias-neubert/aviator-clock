@@ -26,7 +26,7 @@ protected:
     clockHand = std::make_unique<ClockHand>(
         ClockHand::HandType::SECOND, *mockSoc, std::move(motorMockUnique),
         360.0, // Simplified total angle for easier math
-        0.0, 2400.0, 60000.0);
+        2400.0, 60000.0);
   }
 
   void TearDown() override

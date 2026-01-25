@@ -32,7 +32,6 @@ const int EFFECTIVE_STEPS_PER_REVOLUTION = 1600;
 
 // --- Clock Face Configuration ---
 const double DIAL_TOTAL_ACTIVE_ANGLE = 330.0;
-const double DIAL_START_OFFSET_DEGREES = 0.0;
 
 // --- Settings for Smooth Movement ---
 const double SHARP_TICK_SPEED_DPS = 360.0;
@@ -111,7 +110,6 @@ void setup()
       *g_soc,
       std::move(motor),
       DIAL_TOTAL_ACTIVE_ANGLE,
-      DIAL_START_OFFSET_DEGREES,
       SHARP_TICK_SPEED_DPS,
       SHARP_TICK_ACCELERATION_DPS2);
 

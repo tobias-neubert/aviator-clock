@@ -22,7 +22,7 @@ namespace aviator_clock
 
     ClockHand(HandType type, soc::api::ISoc &soc,
               std::unique_ptr<IStepperMotor> &&stepperMotor,
-              double totalAngleForDial, double dialStartOffsetDegrees,
+              double totalAngleForDial,
               double motorSpeedDps, double motorAccelerationDps2);
 
     ~ClockHand();
@@ -50,7 +50,6 @@ namespace aviator_clock
     std::atomic<bool> _shouldStop;
 
     double _totalAngleForDial;
-    double _dialStartOffsetDegrees;
     double _degreesPerUnit;
     int _lastUnitProcessed;
     double _motorSpeedDps;
