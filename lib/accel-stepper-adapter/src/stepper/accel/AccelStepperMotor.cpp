@@ -257,6 +257,7 @@ namespace stepper
                     if (!_stepperController.run())
                     {
                         _currentState = StepperMotorState::IDLE;
+                        disable(); // Disable motor to save power and reduce heat
                         // You can add a log here for debugging:
                         // Serial.println("Adapter: Move complete. State -> IDLE.");
                     }

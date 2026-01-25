@@ -19,6 +19,7 @@
 #define DIR_PIN_HW 12
 #define STEP_PIN_HW 14
 #define HALL_SENSOR_PIN 25
+#define ENABLE_PIN_HW 33
 
 // --- Motor Configuration ---
 const int EFFECTIVE_STEPS_PER_REVOLUTION = 1600;
@@ -87,12 +88,12 @@ void setup()
 
   ESP_LOGI(TAG, "Level 1 components (HomingStrategy) created.");
 
-  // Note: The enable pin argument is omitted, so the library will not control any enable pin.
-  // This matches the hardware setup where the driver's EN pin is permanently grounded.
+  // The enable pin is now passed to the constructor to allow for software control.
   auto motor = std::make_unique<stepper::accel::AccelStepperMotor>(
       *accelWrapper,
       EFFECTIVE_STEPS_PER_REVOLUTION,
-      *homingStrategy);
+      *homingStrategy,
+      ENABLE_PIN_HW);
 
   ESP_LOGI(TAG, "Level 2 components (Motor) created.");
 
