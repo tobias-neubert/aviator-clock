@@ -3,6 +3,7 @@
 #include <stepper/api/IHomingStrategy.h>
 #include <stepper/api/IStepperController.h>
 #include <soc/api/IDigitalInput.h>
+#include <soc/api/Logger.h>
 
 namespace stepper
 {
@@ -19,7 +20,8 @@ namespace stepper
                 int moveDirectionSign;                // +1 or -1: direction to move towards the switch
             };
 
-            LimitSwitchHomingStrategy(stepper::api::IStepperController &stepperController,
+            LimitSwitchHomingStrategy(soc::api::Logger &logger,
+                                      stepper::api::IStepperController &stepperController,
                                       soc::api::IDigitalInput &limitSwitch,
                                       const Config &config);
 
@@ -38,6 +40,7 @@ namespace stepper
                 TIMED_OUT
             };
 
+            soc::api::Logger &_logger;
             stepper::api::IStepperController &_stepperController;
             soc::api::IDigitalInput &_limitSwitch;
             const Config _config;

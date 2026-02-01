@@ -5,7 +5,9 @@
 // --- Mocks and Class Under Test ---
 #include "StepperControllerMock.h"
 #include "HomingStrategyMock.h"
+#include "MockLogger.h" // Re-include MockLogger
 #include "stepper/accel/AccelStepperMotor.h"
+// #include <soc/api/Logger.h> // Remove real Logger include
 
 // --- Using declarations ---
 using namespace stepper::accel;
@@ -17,6 +19,7 @@ class AccelStepperMotorTest : public ::testing::Test
 {
 protected:
     // Mocks are now created directly as members.
+    soc::api::testing::MockLogger mockLogger; // Use MockLogger again
     stepper::testing::MockStepperController mockStepperController;
     stepper::testing::MockHomingStrategy mockHomingStrategy;
 
@@ -32,11 +35,13 @@ protected:
         ON_CALL(mockHomingStrategy, updateHoming()).WillByDefault(Return(HomingResult::IN_PROGRESS));
         ON_CALL(mockStepperController, distanceToGo()).WillByDefault(Return(0));
         ON_CALL(mockStepperController, run()).WillByDefault(Return(false));
+        ON_CALL(mockLogger, _log_formatted(_, _, _)).WillByDefault(Return()); // Default behavior for mock logger
 
         // --- Instantiate the motor ---
         // The constructor calls (e.g., setMaxSpeed) are implicitly allowed
         // by gmock's default behavior and don't need to be specified here.
         motor = std::make_unique<AccelStepperMotor>(
+            mockLogger, // Pass the mock logger
             mockStepperController,
             200 * 16, // fullStepsPerRevolution
             mockHomingStrategy,

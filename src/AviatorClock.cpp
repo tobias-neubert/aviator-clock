@@ -1,5 +1,5 @@
 #include "AviatorClock.h"
-#include "esp_log.h"
+
 
 // --- Include all component headers that will be instantiated ---
 #include <soc/api/IDigitalInput.h>
@@ -16,19 +16,20 @@ static const char *TAG = "AviatorClock";
 
 namespace aviator_clock
 {
-    AviatorClock::AviatorClock(soc::api::ISoc &soc) : _soc(soc)
+    AviatorClock::AviatorClock(soc::api::ISoc &soc) : 
+        _soc(soc)
     {
-        ESP_LOGI(TAG, "AviatorClock instance created.");
+        _soc.getLogger().i(TAG, "AviatorClock instance created.");
     }
 
     AviatorClock::~AviatorClock()
     {
-        ESP_LOGI(TAG, "AviatorClock instance destroyed.");
+        _soc.getLogger().i(TAG, "AviatorClock instance destroyed.");
     }
 
     void AviatorClock::setup()
     {
-        ESP_LOGI(TAG, "Setting up AviatorClock components...");
+        _soc.getLogger().i(TAG, "Setting up AviatorClock components...");
 
         // Create hardware-related components using the encapsulated constants
         _hallSensor = _soc.createDigitalInput(HALL_SENSOR_PIN, true /* isActiveLow */);
@@ -38,7 +39,7 @@ namespace aviator_clock
         _setupButton = std::make_unique<LongPressButton>(_soc, *_setupButtonPin);
 
         _accelWrapper = std::make_unique<stepper::accel::AccelStepperWrapper>(STEP_PIN_HW, DIR_PIN_HW);
-        ESP_LOGI(TAG, "Level 0 components created.");
+        _soc.getLogger().i(TAG, "Level 0 components created.");
 
         // Configuration for the new Homing Strategy
         stepper::homing::PreciseOneWayHomingStrategy::Config homingConfig{
@@ -51,20 +52,22 @@ namespace aviator_clock
 
         // Instantiate the new PreciseOneWayHomingStrategy
         _homingStrategy = std::make_unique<stepper::homing::PreciseOneWayHomingStrategy>(
+            _soc.getLogger(),
             *_accelWrapper,
             *_hallSensor,
             homingConfig);
 
-        ESP_LOGI(TAG, "Level 1 components (HomingStrategy) created.");
+        _soc.getLogger().i(TAG, "Level 1 components (HomingStrategy) created.");
 
         // The enable pin is now passed to the constructor to allow for software control.
         auto motor = std::make_unique<stepper::accel::AccelStepperMotor>(
+            _soc.getLogger(),
             *_accelWrapper,
             EFFECTIVE_STEPS_PER_REVOLUTION,
             *_homingStrategy,
             ENABLE_PIN_HW);
 
-        ESP_LOGI(TAG, "Level 2 components (Motor) created.");
+        _soc.getLogger().i(TAG, "Level 2 components (Motor) created.");
 
         // Create the main application component (ClockHand)
         _secondHand = std::make_unique<aviator_clock::ClockHand>(
@@ -75,7 +78,7 @@ namespace aviator_clock
             SHARP_TICK_SPEED_DPS,
             SHARP_TICK_ACCELERATION_DPS2);
 
-        ESP_LOGI(TAG, "Level 3 components (ClockHand) created.");
+        _soc.getLogger().i(TAG, "Level 3 components (ClockHand) created.");
 
         // Setup the ClockHand itself
         if (_secondHand)
@@ -86,7 +89,7 @@ namespace aviator_clock
 
     void AviatorClock::start()
     {
-        ESP_LOGI(TAG, "Starting AviatorClock logic...");
+        _soc.getLogger().i(TAG, "Starting AviatorClock logic...");
 
         if (_checkForSetupModeActivationAtBoot())
         {
@@ -100,8 +103,8 @@ namespace aviator_clock
 
     bool AviatorClock::_checkForSetupModeActivationAtBoot()
     {
-        ESP_LOGI(TAG, "Checking for setup mode activation...");
-        ESP_LOGI(TAG, "Hold button on GPIO%d for 3s to enter setup.", SETUP_BUTTON_PIN);
+        _soc.getLogger().i(TAG, "Checking for setup mode activation...");
+        _soc.getLogger().i(TAG, "Hold button on GPIO%d for 3s to enter setup.", SETUP_BUTTON_PIN);
 
         const unsigned long checkDuration = 4000; // ms
         unsigned long checkStartTime = _soc.getTimeProvider().millis();
@@ -111,18 +114,18 @@ namespace aviator_clock
             _setupButton->update();
             if (_setupButton->wasLongPressed())
             {
-                ESP_LOGW(TAG, "Long press detected! Entering setup mode.");
+                _soc.getLogger().w(TAG, "Long press detected! Entering setup mode.");
                 return true;
             }
             if (_setupButton->wasShortPressed())
             {
-                ESP_LOGI(TAG, "Short press detected. Continuing normal boot.");
+                _soc.getLogger().i(TAG, "Short press detected. Continuing normal boot.");
                 return false;
             }
             _soc.getSleeper().sleep(10); // yield
         }
 
-        ESP_LOGI(TAG, "No button press detected. Continuing normal boot.");
+        _soc.getLogger().i(TAG, "No button press detected. Continuing normal boot.");
         return false;
     }
 
@@ -131,7 +134,7 @@ namespace aviator_clock
         if (_secondHand)
         {
             _secondHand->start();
-            ESP_LOGI(TAG, "ClockHand task started.");
+            _soc.getLogger().i(TAG, "ClockHand task started.");
         }
 
         // Start the background task for button monitoring
@@ -139,14 +142,14 @@ namespace aviator_clock
             [this]()
             { this->buttonMonitoringTask(); },
             "button_task");
-        ESP_LOGI(TAG, "Button monitoring task started.");
+        _soc.getLogger().i(TAG, "Button monitoring task started.");
     }
 
     void AviatorClock::_enterWifiSetupMode()
     {
         // Here we will eventually call the WiFi setup function
         // For now, we'll just indicate it and halt execution
-        ESP_LOGI(TAG, "Setup mode activated. Further implementation needed.");
+        _soc.getLogger().i(TAG, "Setup mode activated. Further implementation needed.");
         while (true)
         {
             _soc.getSleeper().sleep(1000);
@@ -156,13 +159,13 @@ namespace aviator_clock
 
     void AviatorClock::buttonMonitoringTask()
     {
-        ESP_LOGI(TAG, "Button monitoring task running.");
+        _soc.getLogger().i(TAG, "Button monitoring task running.");
         while (true)
         {
             _setupButton->update();
             if (_setupButton->wasLongPressed())
             {
-                ESP_LOGW(TAG, "Long press detected during operation. Restarting to enter setup mode...");
+                _soc.getLogger().w(TAG, "Long press detected during operation. Restarting to enter setup mode...");
                 _soc.getSleeper().sleep(1000); // Wait a moment for the log to be sent
                 ESP.restart();
             }

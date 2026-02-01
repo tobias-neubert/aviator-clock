@@ -43,6 +43,7 @@ namespace aviator_clock
 
     HandType _type;
     soc::api::ISoc &_soc;
+    soc::api::Logger &_logger;
     
     soc::api::ITime &_timeProvider;
     std::unique_ptr<IStepperMotor> _stepperMotor;

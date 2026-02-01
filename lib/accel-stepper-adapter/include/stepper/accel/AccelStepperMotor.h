@@ -4,6 +4,7 @@
 #include <stepper/api/IStepperMotor.h>
 #include <stepper/api/IHomingStrategy.h>
 #include <stepper/api/StepperMotorState.h>
+#include <soc/api/Logger.h>
 
 // A common invalid pin marker
 #ifndef INVALID_PIN
@@ -18,6 +19,7 @@ namespace stepper
         {
         public:
             AccelStepperMotor(
+                soc::api::Logger& logger,
                 stepper::api::IStepperController& stepperController,
                 int fullStepsPerRevolution,
                 stepper::api::IHomingStrategy& homingStrategy,
@@ -45,6 +47,7 @@ namespace stepper
             void stop() override;
 
         private:
+            soc::api::Logger& _logger;
             stepper::api::IStepperController& _stepperController;
             const int _fullStepsPerRevolution;
             const uint8_t _enablePin;

@@ -3,7 +3,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <memory>
-#include "esp_log.h"
 
 static const char* TAG = "ESP32Soc";
 
@@ -47,7 +46,7 @@ namespace soc
     {
       // Create the service instances in the constructor.
       // Initialization that can fail or takes time is done in init().
-      m_timeProvider = std::make_unique<NtpTime>();
+      m_timeProvider = std::make_unique<NtpTime>(m_logger);
       m_sleeper = std::make_unique<ESP32Sleeper>();
     }
 
@@ -59,6 +58,11 @@ namespace soc
       {
         m_timeProvider->init(wifiSsid, wifiPassword);
       }
+    }
+
+    soc::api::Logger &ESP32Soc::getLogger()
+    {
+      return m_logger;
     }
 
     soc::api::ITime &ESP32Soc::getTimeProvider()
@@ -102,12 +106,12 @@ namespace soc
 
       if (result != pdPASS)
       {
-        ESP_LOGE(TAG, "Failed to create task '%s'", name.c_str());
+        m_logger.e(TAG, "Failed to create task '%s'", name.c_str());
         delete functionPtr; // Clean up the function object if task creation fails.
         return nullptr;
       }
 
-      ESP_LOGI(TAG, "Task '%s' created successfully.", name.c_str());
+      m_logger.i(TAG, "Task '%s' created successfully.", name.c_str());
 
       // Return an RAII wrapper that will manage the lifetime of the task.
       return std::make_unique<ESP32Task>(handle);

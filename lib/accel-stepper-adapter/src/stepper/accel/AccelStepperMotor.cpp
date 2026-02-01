@@ -2,7 +2,6 @@
 #include <stepper/api/StepperMotorState.h>
 #include <cmath>
 #include <stdexcept>
-#include "esp_log.h"
 
 static const char* TAG = "AccelStepperMotor";
 
@@ -18,11 +17,13 @@ namespace stepper
     namespace accel
     {
         AccelStepperMotor::AccelStepperMotor(
+            soc::api::Logger& logger,
             stepper::api::IStepperController &stepperController,
             int fullStepsPerRevolution,
             stepper::api::IHomingStrategy &homingStrategy,
             uint8_t enablePin,
-            bool enablePinActiveLow) : _stepperController(stepperController),
+            bool enablePinActiveLow) : _logger(logger),
+                                       _stepperController(stepperController),
                                        _fullStepsPerRevolution(fullStepsPerRevolution),
                                        _homingStrategy(homingStrategy),
                                        _enablePin(enablePin),
@@ -177,7 +178,7 @@ namespace stepper
             else
             {
                 _currentSetSpeedDps = degreesPerSecond;
-                ESP_LOGI(TAG, "Set speed to %f", degreesPerSecond);
+                _logger.i(TAG, "Set speed to %f", degreesPerSecond);
             }
 
             _stepperController.setMaxSpeed(degreesToSteps(_currentSetSpeedDps));
@@ -211,7 +212,7 @@ namespace stepper
             {
                 // Or maybe just log a warning? Forcing a position on an unhomed motor is tricky.
                 // For this project's use case (resetting after a wrap), it's assumed to be homed.
-                ESP_LOGW(TAG, "setCurrentPositionDegrees called on an un-homed motor.");
+                _logger.w(TAG, "setCurrentPositionDegrees called on an un-homed motor.");
             }
             _stepperController.setCurrentPosition(degreesToSteps(degrees));
         }
@@ -281,7 +282,7 @@ namespace stepper
                     _currentState = StepperMotorState::IDLE;
 
                     // Restore operational parameters on the controller
-                    ESP_LOGI(TAG,
+                    _logger.i(TAG,
                         "Homing succeeded, setting speed and acceleration to %f and %f", 
                         _currentSetSpeedDps, 
                         _currentSetAccelerationDps2);

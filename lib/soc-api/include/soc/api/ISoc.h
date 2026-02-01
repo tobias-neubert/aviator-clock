@@ -6,6 +6,7 @@
 #include "ISleeper.h"
 #include "ITask.h"
 #include "ITime.h"
+#include "Logger.h"
 
 namespace soc
 {
@@ -22,6 +23,11 @@ namespace soc
         {
         public:
             virtual ~ISoc() = default;
+
+            /**
+             * @brief Gets a reference to the system-wide logger.
+             */
+            virtual Logger &getLogger() = 0;
 
             /**
              * @brief Gets a reference to the system-wide time provider.

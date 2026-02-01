@@ -1,6 +1,7 @@
 #pragma once
 
 #include "soc/api/ITime.h"
+#include <soc/api/Logger.h>
 
 namespace soc
 {
@@ -9,7 +10,7 @@ namespace soc
         class NtpTime : public api::ITime
         {
         public:
-            NtpTime();
+            NtpTime(soc::api::Logger& logger);
             virtual ~NtpTime() = default;
 
             /**
@@ -43,6 +44,7 @@ namespace soc
             unsigned long millis() const override;
 
         private:        
+            soc::api::Logger& _logger;
             bool _isTimeSynced;
         };
     } // namespace esp32

@@ -3,6 +3,7 @@
 #include <stepper/api/IHomingStrategy.h>
 #include <stepper/api/IStepperController.h>
 #include <soc/api/IDigitalInput.h>
+#include <soc/api/Logger.h>
 
 namespace stepper
 {
@@ -21,6 +22,7 @@ namespace stepper
             };
 
             PreciseOneWayHomingStrategy(
+                soc::api::Logger &logger,
                 stepper::api::IStepperController &stepperController,
                 soc::api::IDigitalInput &limitSwitch,
                 const Config &config);
@@ -44,6 +46,7 @@ namespace stepper
 
             void enterPhase(Phase newPhase);
 
+            soc::api::Logger &_logger;
             stepper::api::IStepperController &_stepperController;
             soc::api::IDigitalInput &_limitSwitch;
             const Config _config;

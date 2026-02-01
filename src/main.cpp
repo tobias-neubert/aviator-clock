@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <memory>
-#include "esp_log.h"
+#include <soc/api/Logger.h>
 
 // --- Framework/SoC Includes ---
 #include <soc/esp32/ESP32Soc.h>
@@ -11,7 +11,6 @@
 // =========================================================================
 // --- GLOBAL DECLARATIONS ---
 // =========================================================================
-static const char* TAG = "main";
 std::unique_ptr<soc::api::ISoc> g_soc;
 std::unique_ptr<aviator_clock::AviatorClock> g_aviatorClock;
 
@@ -27,11 +26,14 @@ void setup()
   esp32Soc->init("Starcommand", "75v5VrZSyKRQatFtkRmV");
   g_soc = std::move(esp32Soc);
 
-  ESP_LOGI(TAG, "=================================================");
-  ESP_LOGI(TAG, " ESP32 Aviator Clock (RTOS Version)");
-  ESP_LOGI(TAG, " System Booted: %s, %s", __DATE__, __TIME__);
-  ESP_LOGI(TAG, "=================================================");
-  ESP_LOGI(TAG, "SoC created and initialized.");
+  // Set the log level to INFO (ignoring DEBUG messages)
+  g_soc->getLogger().setLogLevel(soc::api::LogLevel::INFO);
+
+  g_soc->getLogger().i("main", "=================================================");
+  g_soc->getLogger().i("main", " ESP32 Aviator Clock (RTOS Version)");
+  g_soc->getLogger().i("main", " System Booted: %s, %s", __DATE__, __TIME__);
+  g_soc->getLogger().i("main", "=================================================");
+  g_soc->getLogger().i("main", "SoC created and initialized.");
 
   // 2. Create the main application object
   g_aviatorClock = std::make_unique<aviator_clock::AviatorClock>(*g_soc);

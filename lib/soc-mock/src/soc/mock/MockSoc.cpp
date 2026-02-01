@@ -18,6 +18,7 @@ namespace soc
     // The destructor can now be defaulted in the header, but it's also fine here.
     MockSoc::~MockSoc() = default;
 
+    soc::api::Logger &MockSoc::getLogger() { return m_logger; }
     soc::api::ITime &MockSoc::getTimeProvider() { return *m_timeProvider; }
     soc::api::ISleeper &MockSoc::getSleeper() { return *m_sleeper; }
 
