@@ -29,12 +29,9 @@ namespace soc
 
             /**
              * @brief Initializes the SoC services.
-             * This can include connecting to WiFi for NTP, etc.
-             *
-             * @param wifiSsid The WiFi SSID for NTP synchronization.
-             * @param wifiPassword The WiFi password for NTP synchronization.
+             * Included setting up NTP configuration.
              */
-            void init(const char *wifiSsid, const char *wifiPassword);
+            void init();
 
             // --- ISoc Interface Implementation ---
             soc::api::Logger &getLogger() override;

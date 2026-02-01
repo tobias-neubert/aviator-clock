@@ -50,13 +50,14 @@ namespace soc
       m_sleeper = std::make_unique<ESP32Sleeper>();
     }
 
-    void ESP32Soc::init(const char *wifiSsid, const char *wifiPassword)
+    void ESP32Soc::init()
     {
-      // Initialize the time provider, which connects to WiFi and starts NTP.
-      // This is a blocking operation and should be called from setup().
+      m_logger.i(TAG, "Initializing SOC services...");
+      // Initialize the time provider.
+      // This configures NTP but does not connect to WiFi yet.
       if (m_timeProvider)
       {
-        m_timeProvider->init(wifiSsid, wifiPassword);
+        m_timeProvider->init();
       }
     }
 

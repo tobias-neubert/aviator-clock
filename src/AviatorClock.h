@@ -6,6 +6,7 @@
 // Forward declarations to avoid including full headers here
 namespace soc { namespace api { class IDigitalInput; } }
 namespace stepper { namespace api { class IStepperController; class IHomingStrategy; } }
+namespace wifi { namespace api { class IWifiManager; } }
 class IButton;
 #include "aviator-clock/ClockHand.h"
 
@@ -24,8 +25,9 @@ namespace aviator_clock
         /**
          * @brief Construct a new Aviator Clock object.
          * @param soc A reference to the underlying System-on-a-Chip services.
+         * @param wifiManager A reference to the WiFi Manager.
          */
-        explicit AviatorClock(soc::api::ISoc &soc);
+        AviatorClock(soc::api::ISoc &soc, wifi::api::IWifiManager &wifiManager);
 
         /**
          * @brief Destructor.
@@ -65,6 +67,7 @@ namespace aviator_clock
 
         // --- Core Dependencies ---
         soc::api::ISoc &_soc;
+        wifi::api::IWifiManager &_wifiManager;
 
         // --- Hardware and Logic Components ---
         std::unique_ptr<stepper::api::IStepperController> _accelWrapper;

@@ -24,51 +24,14 @@ namespace soc
         {
         }
 
-        bool NtpTime::init(const char *ssid, const char *password)
+        bool NtpTime::init()
         {
-            // 1. Connect to WiFi
-            _logger.i(TAG, "Connecting to WiFi SSID: %s", ssid);
-            WiFi.begin(ssid, password);
-
-            // Wait for connection, with a 30-second timeout
-            int timeout_seconds = 30;
-            while (WiFi.status() != WL_CONNECTED)
-            {
-                delay(500);
-                if (timeout_seconds-- <= 0)
-                {
-                    ESP_LOGE(TAG, "Failed to connect to WiFi.");
-                    return false;
-                }
-            }
-            _logger.i(TAG, "WiFi connected.");
-
-            // 2. Configure time using timezone and NTP server
+            // Configure time using timezone and NTP server
             // This function sets up the ESP32 to query the NTP server and apply the timezone rule.
+            // It runs in the background and will sync whenever WiFi is available.
             configTzTime(TIME_ZONE, NTP_SERVER);
-
-            // 3. Wait for the time to be synchronized
-            _logger.i(TAG, "Synchronizing time with NTP server...");
-            struct tm timeinfo;
-            // getLocalTime() returns true once time is synced. We'll wait for up to 15 seconds.
-            timeout_seconds = 15;
-            while (!getLocalTime(&timeinfo))
-            {
-                delay(500);
-                if (timeout_seconds-- <= 0)
-                {
-                    _logger.e(TAG, "Failed to synchronize time.");
-                    _isTimeSynced = false;
-                    return false;
-                }
-            }
-            _isTimeSynced = true;
-            _logger.i(TAG, "Time synchronized successfully.");
-
-            // Optional: Print current time
-            char time_buf[64];
-            strftime(time_buf, sizeof(time_buf), "%A, %B %d %Y %H:%M:%S", &timeinfo);
-            _logger.i(TAG, "Current time: %s", time_buf);
+            
+            _logger.i(TAG, "NTP Time configured. Waiting for WiFi to sync...");
 
             return true;
         }
@@ -77,7 +40,14 @@ namespace soc
         {
             if (!_isTimeSynced)
             {
-                return 0;
+                struct tm timeinfo;
+                // Check if we are synced now
+                if (getLocalTime(&timeinfo, 0)) {
+                    _isTimeSynced = true;
+                    _logger.i(TAG, "Time synced via NTP.");
+                } else {
+                    return 0;
+                }
             }
 
             struct timeval timeValue;

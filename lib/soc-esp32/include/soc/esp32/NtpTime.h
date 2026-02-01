@@ -14,12 +14,12 @@ namespace soc
             virtual ~NtpTime() = default;
 
             /**
-             * @brief Initializes the component, connecting to WiFi and setting up the NTP client.
-             * @param ssid The SSID of the WiFi network.
-             * @param password The password for the WiFi network.
-             * @return True if initialization (WiFi + NTP sync) was successful, false otherwise.
+             * @brief Initializes the component, configuring the NTP client.
+             * Does NOT connect to WiFi.
+             * 
+             * @return True if initialization was successful.
              */
-            bool init(const char *ssid, const char *password);
+            bool init();
 
             /**
              * @brief Gets the current time in milliseconds since January 1, 1970, 00:00:00 UTC
