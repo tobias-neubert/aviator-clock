@@ -15,6 +15,7 @@ namespace soc
 
             unsigned long now() override;
             bool asTimeComponents(TimeComponents &time) override;
+            unsigned long millis() const override;
         };
 
     }

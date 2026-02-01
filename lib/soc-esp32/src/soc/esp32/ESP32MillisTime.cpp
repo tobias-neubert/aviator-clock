@@ -31,5 +31,10 @@ namespace soc
             return true;
         }
 
+        unsigned long ESP32MillisTime::millis() const
+        {
+            return ::millis();
+        }
+
     }
 }

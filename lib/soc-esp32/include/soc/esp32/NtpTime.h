@@ -36,6 +36,12 @@ namespace soc
              */
             bool asTimeComponents(TimeComponents &time) override;
 
+            /**
+             * @brief Gets the number of milliseconds since the device booted.
+             * @return Milliseconds since boot.
+             */
+            unsigned long millis() const override;
+
         private:        
             bool _isTimeSynced;
         };

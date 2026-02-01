@@ -33,6 +33,12 @@ namespace soc
              * calculated elapsed hours, minutes, and seconds since boot.
              */
             virtual bool asTimeComponents(TimeComponents &time) = 0;
+
+            /**
+             * @brief Gets the number of milliseconds since the device began to run the current program.
+             * @return The number of milliseconds since the device began to run the current program.
+             */
+            virtual unsigned long millis() const = 0;
         };
 
     }

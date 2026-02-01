@@ -111,5 +111,10 @@ namespace soc
             time.seconds = timeinfo.tm_sec;
             return true;
         }
+
+        unsigned long NtpTime::millis() const
+        {
+            return ::millis();
+        }
     } // namespace esp32
 } // namespace soc

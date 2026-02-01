@@ -37,6 +37,12 @@ namespace soc
         return true;
       }
 
+      unsigned long millis() const override
+      {
+        auto uptime = std::chrono::steady_clock::now() - m_startTime;
+        return std::chrono::duration_cast<std::chrono::milliseconds>(uptime).count();
+      }
+
     private:
       std::chrono::steady_clock::time_point m_startTime;
     };
