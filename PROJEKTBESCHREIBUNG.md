@@ -14,7 +14,27 @@ Das Ziel ist der Bau einer physischen Uhr, die von klassischen analogen Fluginst
 *   **Testbarkeit:** Die Anwendungslogik soll so weit wie möglich auf einem Host-PC (z.B. mittels GoogleTest) testbar sein, ohne dass die physische Hardware (ESP32) benötigt wird. Dies wird durch eine Hardware-Abstraktionsschicht erreicht.
 *   **Echtzeitfähigkeit:** Das System soll auf einem Echtzeitbetriebssystem (RTOS, konkret FreeRTOS auf dem ESP32) laufen, um die präzise und nebenläufige Steuerung der drei Motoren sowie anderer Dienste (z.B. NTP-Zeitsynchronisation) zu gewährleisten.
 
-## 3. Kernkomponenten (Bibliotheken in `lib/`)
+## 3. Software-Architektur (Zielzustand)
+
+Die Software-Architektur folgt dem "Composition Root"-Pattern, um eine saubere Trennung der Verantwortlichkeiten zu gewährleisten und die Testbarkeit zu maximieren.
+
+*   **`main.cpp` (Einstiegspunkt / "Main"):**
+    *   Die `main.cpp` dient ausschließlich als Einstiegspunkt der Anwendung.
+    *   Ihre einzige Verantwortung ist es, die globale `soc`-Abstraktionsschicht (z.B. `ESP32Soc`) und die Haupt-Anwendungsklasse `AviatorClock` zu instanziieren und deren Lebenszyklus zu verwalten (`setup()` und `start()`).
+    *   Sie enthält keinerlei Anwendungs- oder Verdrahtungslogik.
+
+*   **`AviatorClock` Klasse (Die Anwendung / "Composition Root"):**
+    *   Diese Klasse ist das Herz der Anwendung und befindet sich in der `aviator-clock`-Bibliothek.
+    *   Sie agiert als "Composition Root": Sie ist dafür verantwortlich, alle für den Betrieb notwendigen Objekte und Komponenten zu erstellen, zu konfigurieren und miteinander zu verbinden.
+    *   Dazu gehören Motoren, Sensoren, Buttons, Homing-Strategien und die einzelnen Uhrzeiger (`ClockHand`-Instanzen).
+    *   Alle statischen Konfigurationen (Pin-Definitionen, Geschwindigkeiten, etc.) sind innerhalb dieser Klasse gekapselt.
+    *   Sie orchestriert die übergeordnete Logik, z.B. "Prüfe beim Start, ob der Setup-Button gedrückt wird. Wenn ja, starte den WiFi-Konfigurationsmodus. Wenn nein, starte den normalen Uhrbetrieb."
+
+*   **Bibliotheken (in `lib/`):**
+    *   Die einzelnen Bibliotheken (`soc-api`, `stepper-api`, `buttons`, etc.) sind wiederverwendbare, voneinander unabhängige Module mit klar definierten Schnittstellen (APIs).
+    *   Die `AviatorClock`-Klasse nutzt diese Bibliotheken, aber die Bibliotheken selbst haben keine Kenntnis von der `AviatorClock`-Anwendung.
+
+## 4. Kernkomponenten (Bibliotheken in `lib/`)
 
 *   `soc-api`: Definiert die Schnittstellen zur Hardware-Abstraktion (System-on-a-Chip API). Hierzu gehören Dienste wie Logging, Zeitgeber, GPIOs und zukünftig auch RTOS-Primitive (Tasks, Queues).
 *   `soc-esp32`: Die konkrete Implementierung der `soc-api` für die ESP32-Plattform unter Verwendung des Arduino/ESP-IDF Frameworks.
