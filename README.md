@@ -8,6 +8,9 @@ pio test -e unity_tests
 pio test -e google_tests
 ```
 
+### Upload Filesystem (LittleFS)
+pio run -e nodemcu-32s -t uploadfs
+
 ### Upload and Execute Programm
 ```
 pio run -e nodemcu-32s -t upload

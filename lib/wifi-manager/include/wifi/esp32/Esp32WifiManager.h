@@ -6,7 +6,7 @@
 #include <soc/api/ISoc.h>
 
 #include <WiFi.h>
-#include <WebServer.h>
+#include <ESPAsyncWebServer.h>
 #include <Preferences.h>
 #include <memory>
 #include <vector>
@@ -30,23 +30,16 @@ namespace wifi
             void resetCredentials() override;
 
         private:
-            void _setupModeTask(); // The task function
-            void _handleWebClient();
-            void _handleRoot();
-            void _handleSave();
+            void _setupRoutes();
             std::string _scanNetworks();
 
         private:
             soc::api::ISoc& _soc;
-            std::unique_ptr<WebServer> _server;
-            std::unique_ptr<soc::api::ITask> _webTask;
+            std::unique_ptr<AsyncWebServer> _server;
             Preferences _preferences;
             
-            // _isSetupMode indicates that the Setup Mode is logically active (AP running, Task running).
-            // It remains true until cleanup is fully complete.
+            // _isSetupMode indicates that the Setup Mode is logically active (AP running, Server running).
              volatile bool _isSetupMode = false;
-             // _shouldStopSetup indicates that the user or logic requested to stop setup.
-             volatile bool _shouldStopSetup = false;
             
             // Configuration for AP
             const char* _apSSID = "Aviator-Clock-Setup";

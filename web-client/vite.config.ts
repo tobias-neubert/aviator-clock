@@ -11,7 +11,9 @@ export default defineConfig({
     viteCompression({
         algorithm: 'gzip',
         ext: '.gz',
-        deleteOriginFile: false
+        deleteOriginFile: true,
+        threshold: 0,
+        filter: /\.(js|mjs|json|css|html|svg)$/i
     })
   ],
   build: {
