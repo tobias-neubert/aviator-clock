@@ -8,12 +8,10 @@
   --border-radius: 12px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-color: #000000;
-    --surface-color: #1C1C1E;
-    --text-color: #FFFFFF;
-  }
+[data-theme="dark"] {
+  --bg-color: #000000;
+  --surface-color: #1C1C1E;
+  --text-color: #FFFFFF;
 }
 
 body {

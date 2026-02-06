@@ -13,11 +13,31 @@
   let connectionMessage = "";
   let isError = false;
   let setupSuccess = false;
+  let theme = 'light';
 
   onMount(async () => {
+      // Theme Init
+      const saved = localStorage.getItem('theme');
+      if (saved) {
+          theme = saved;
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          theme = 'dark';
+      }
+      applyTheme();
+
       loadStatus();
       scanWifi();
   });
+
+  function applyTheme() {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+  }
+
+  function toggleTheme() {
+      theme = theme === 'dark' ? 'light' : 'dark';
+      applyTheme();
+  }
 
   async function loadStatus() {
       try {
@@ -94,6 +114,9 @@
 <main>
   <div class="header">
     <h1>Aviator Clock</h1>
+    <button class="theme-btn" on:click={toggleTheme} aria-label="Toggle Theme">
+        {theme === 'dark' ? '🌙' : '☀️'}
+    </button>
   </div>
 
   <div class="island">
@@ -228,6 +251,14 @@
     gap: 24px;
     padding-bottom: 40px;
   }
+  
+  .header {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 10px;
+  }
 
   .header h1 {
     font-size: 24px;
@@ -235,6 +266,22 @@
     margin: 10px 0;
     text-align: center;
     opacity: 0.9;
+  }
+  
+  .theme-btn {
+      position: absolute;
+      right: 0;
+      background: none;
+      border: none;
+      font-size: 22px;
+      padding: 8px;
+      cursor: pointer;
+      opacity: 0.8;
+      transition: transform 0.2s;
+  }
+  
+  .theme-btn:active {
+      transform: scale(0.9);
   }
 
   .island {
