@@ -119,11 +119,9 @@ namespace wifi
 
         void Esp32WifiManager::_setupRoutes()
         {
-            // 1. Serve Static Files (The Svelte App)
-            // 'serveStatic' automatically handles gzip files if they exist (e.g. index.html.gz)
-            _server->serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
+            // API endpoints should differ before serveStatic to ensure correct precedence
 
-            // 2. API: Scan Networks
+            // 1. API: Scan Networks
             _server->on("/api/wifi/scan", HTTP_GET, [this](AsyncWebServerRequest *request){
                 _soc.getLogger().i(TAG, "API: Scan requested");
                 
@@ -132,13 +130,32 @@ namespace wifi
                 
                 JsonDocument doc;
                 JsonArray array = doc.to<JsonArray>();
-                
+
+                // Select strongest signal per SSID
+                // Map SSID -> index in scan result
+                std::map<String, int> bestNetworks;
+
                 for (int i = 0; i < n; ++i) {
+                    String ssid = WiFi.SSID(i);
+                    if (ssid.length() == 0) continue; // Skip hidden/empty
+
+                    if (bestNetworks.find(ssid) == bestNetworks.end()) {
+                        bestNetworks[ssid] = i;
+                    } else {
+                        // Compare RSSI, keep larger (less negative)
+                        int currentIndex = bestNetworks[ssid];
+                        if (WiFi.RSSI(i) > WiFi.RSSI(currentIndex)) {
+                            bestNetworks[ssid] = i;
+                        }
+                    }
+                }
+                
+                // Add unique networks to JSON
+                for (auto const& [ssid, index] : bestNetworks) {
                     JsonObject net = array.add<JsonObject>();
-                    net["ssid"] = WiFi.SSID(i);
-                    net["rssi"] = WiFi.RSSI(i);
-                    // Check if enc type is OPEN
-                    net["protected"] = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+                    net["ssid"] = WiFi.SSID(index);
+                    net["rssi"] = WiFi.RSSI(index);
+                    net["protected"] = (WiFi.encryptionType(index) != WIFI_AUTH_OPEN);
                 }
                 
                 String response;
@@ -146,7 +163,7 @@ namespace wifi
                 request->send(200, "application/json", response);
             });
 
-            // 3. API: Save Credentials
+            // 2. API: Save Credentials
             // Handler for the Request (sends the response)
             _server->on("/api/wifi/connect", HTTP_POST, 
                 [](AsyncWebServerRequest *request){
@@ -174,7 +191,7 @@ namespace wifi
                     }
             });
             
-            // 4. API: Reboot
+            // 3. API: Reboot
             _server->on("/api/system/reboot", HTTP_POST, [this](AsyncWebServerRequest *request){
                 request->send(200, "application/json", "{\"status\":\"rebooting\"}");
                 // Reboot after a short delay to allow response to be sent
@@ -184,7 +201,7 @@ namespace wifi
                 ESP.restart();
             });
             
-            // 5. API: Status
+            // 4. API: Status
             _server->on("/api/system/status", HTTP_GET, [this](AsyncWebServerRequest *request){
                  JsonDocument doc;
                  doc["ip"] = WiFi.localIP().toString();
@@ -194,6 +211,29 @@ namespace wifi
                  serializeJson(doc, response);
                  request->send(200, "application/json", response);
             });
+
+            // 5. API: Finish Setup (Exit AP Mode)
+            _server->on("/api/setup/finish", HTTP_POST, [this](AsyncWebServerRequest *request){
+                request->send(200, "application/json", "{\"status\":\"finishing\"}");
+                // Defer stopSetupMode to allow response to flourish
+                // using a simplified approach: just set a flag expecting the main loop or a task/timer to handle it?
+                // interacting with the main loop from here is tricky without a flag.
+                // But we can just use a small delay and disconnect.
+                // However, blocking inside async handler is bad.
+                
+                // Let's create a one-shot task to stop it after 1s
+                xTaskCreate([](void* arg){
+                    auto* mgr = static_cast<Esp32WifiManager*>(arg);
+                    vTaskDelay(pdMS_TO_TICKS(1000));
+                    mgr->stopSetupMode();
+                    vTaskDelete(NULL);
+                }, "stop_setup_task", 4096, this, 1, NULL);
+            });
+
+            // 6. Serve Static Files (The Svelte App)
+            // 'serveStatic' automatically handles gzip files if they exist (e.g. index.html.gz)
+            // MOVED TO END: Catch-all handler must be last to allow API routes to fire first
+            _server->serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
         }
 
         std::string Esp32WifiManager::_scanNetworks() {

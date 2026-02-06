@@ -1,12 +1,42 @@
 <script lang="ts">
-  let wifiNetworks = [
-    { ssid: 'Router-2.4GHz', signal: -45, protected: true },
-    { ssid: 'GuestAccess', signal: -78, protected: false },
-    { ssid: 'NeighbourWiFi', signal: -85, protected: true }
-  ];
+  import { onMount, tick } from 'svelte';
+  import { api, type WifiNetwork, type SystemStatus } from './lib/api';
+
+  let wifiNetworks: WifiNetwork[] = [];
+  let status: SystemStatus = { ip: '...', connected: false };
   
   let selectedSsid: string | null = null;
   let password = "";
+  
+  let isScanning = false;
+  let isConnecting = false;
+  let connectionMessage = "";
+  let isError = false;
+  let setupSuccess = false;
+
+  onMount(async () => {
+      loadStatus();
+      scanWifi();
+  });
+
+  async function loadStatus() {
+      try {
+          status = await api.getStatus();
+      } catch (e) {
+          console.error("Failed to load status", e);
+      }
+  }
+
+  async function scanWifi() {
+      isScanning = true;
+      try {
+          wifiNetworks = await api.scanNetworks();
+      } catch (e) {
+          console.error("Scan failed", e);
+      } finally {
+          isScanning = false;
+      }
+  }
 
   function toggleNetwork(ssid: string) {
     if (selectedSsid === ssid) {
@@ -14,22 +44,73 @@
     } else {
       selectedSsid = ssid;
       password = "";
+      connectionMessage = "";
+      isError = false;
     }
   }
 
-  function connect() {
-    alert(`Connecting to ${selectedSsid}...`);
+  async function connect() {
+    if (!selectedSsid) return;
+    
+    // Einfache Validierung (leeres Passwort bei WPA2 verhindern war nicht gefordert, aber hilfreich)
+    // Hier nur Status Reset
+    isConnecting = true;
+    connectionMessage = "";
+    isError = false;
+
+    try {
+        await api.connect(selectedSsid, password);
+        
+        // Erfolg: Zeige Fullscreen Success
+        setupSuccess = true;
+        
+        // Nach kurzer Pause Setup beenden
+        setTimeout(async () => {
+             await api.finishSetup();
+        }, 1000);
+
+    } catch (e) {
+        isError = true;
+        connectionMessage = "Fehler beim Speichern.";
+    } finally {
+        isConnecting = false;
+    }
   }
 </script>
 
+{#if setupSuccess}
+  <div class="success-overlay">
+      <div class="island success-island">
+          <div class="success-content">
+             <h2 class="done-title">Done.</h2>
+             <p class="success-desc">Einstellungen gespeichert.<br>Die Uhr verbindet sich nun.</p>
+          </div>
+          <div class="success-footer">
+             <p class="small">Sie können dieses Fenster nun schließen.</p>
+          </div>
+      </div>
+  </div>
+{:else}
 <main>
   <div class="header">
     <h1>Aviator Clock</h1>
   </div>
 
   <div class="island">
-    <h2>WLAN Networks</h2>
+    <div class="row">
+        <h2>WLAN Networks</h2>
+        <button class="icon-btn" on:click={scanWifi} disabled={isScanning}>
+            {isScanning ? '...' : '↻'}
+        </button>
+    </div>
+    
     <div class="list">
+      {#if isScanning && wifiNetworks.length === 0}
+         <div class="list-item center">Suche Netzwerke...</div>
+      {:else if wifiNetworks.length === 0}
+         <div class="list-item center">Keine Netzwerke gefunden</div>
+      {/if}
+
       {#each wifiNetworks as net}
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -38,14 +119,25 @@
             <span class="ssid">{net.ssid}</span>
             <span class="signal">
                 {#if net.protected}🔒{/if}
-                {net.signal}dB
+                {net.rssi}dB
             </span>
           </div>
           
           {#if selectedSsid === net.ssid}
             <div class="details" on:click|stopPropagation>
-               <input type="password" placeholder="Passwort" bind:value={password} />
-               <button on:click={connect}>Verbinden</button>
+               <input 
+                  type="password" 
+                  placeholder="Passwort" 
+                  class:input-error={isError}
+                  bind:value={password} 
+                  disabled={isConnecting} 
+               />
+               <button on:click={connect} disabled={isConnecting}>
+                   {isConnecting ? 'Speichere...' : 'Verbinden'}
+               </button>
+               {#if connectionMessage}
+                   <p class="msg" class:msg-error={isError}>{connectionMessage}</p>
+               {/if}
             </div>
           {/if}
         </div>
@@ -57,20 +149,79 @@
     <h2>Status</h2>
     <div class="info-row">
         <span>IP Address</span>
-        <span class="value">192.168.1.50</span>
+        <span class="value">{status.ip}</span>
     </div>
     <div class="info-row">
-        <span>Uptime</span>
-        <span class="value">00:15:32</span>
-    </div>
-    <div class="info-row">
-        <span>Version</span>
-        <span class="value">v1.2.0</span>
+        <span>Verbunden</span>
+        <span class="value">{status.connected ? 'Ja' : 'Nein'}</span>
     </div>
   </div>
 </main>
+{/if}
 
 <style>
+  /* --- Success Overlay Styles --- */
+  .success-overlay {
+      position: fixed;
+      top: 0; 
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg-color);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      padding: 15px; /* Kleiner Rand, damit man den Hintergrund sieht */
+      box-sizing: border-box;
+  }
+  
+  .success-island {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      text-align: center;
+      box-sizing: border-box;
+      padding: 40px 20px 20px 20px;
+  }
+
+  .success-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+  }
+
+  .done-title {
+      font-size: 48px;
+      font-weight: 800;
+      color: var(--primary-color);
+      margin: 0 0 16px 0;
+      opacity: 1 !important; /* Override standard header opacity */
+      text-transform: none !important; /* Override Island h2 uppercase */
+  }
+
+  .success-desc {
+      font-size: 18px;
+      opacity: 0.7;
+      line-height: 1.5;
+  }
+
+  .success-footer {
+      width: 100%;
+      padding-top: 20px;
+  }
+
+  .small {
+      font-size: 14px;
+      opacity: 0.5;
+  }
+
+  /* --- Normal Styles --- */
   main {
     display: flex;
     flex-direction: column;
@@ -105,6 +256,48 @@
   .list {
     display: flex;
     flex-direction: column;
+    gap: 8px;
+  }
+
+  .center {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--text-color);
+      opacity: 0.5;
+      font-style: italic;
+  }
+  
+  .icon-btn {
+      background: none;
+      color: var(--text-color);
+      padding: 0 8px;
+      font-size: 20px;
+      opacity: 0.5;
+      width: auto;
+  }
+  
+  .msg {
+      text-align: center;
+      font-size: 14px;
+      margin-top: 8px;
+      color: var(--primary-color);
+  }
+
+  .msg-error {
+      color: #ff3e3e; /* Standard Red */
+  }
+
+  .input-error {
+      border-color: #ff3e3e !important;
+      background-color: rgba(255, 62, 62, 0.05);
+  }
+
+  .details {
+    display: flex;
+    flex-direction: column;
+    margin-top: 10px;
+    gap: 10px;
   }
 
   .list-item {

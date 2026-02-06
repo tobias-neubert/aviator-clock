@@ -99,6 +99,11 @@ namespace aviator_clock
          * @brief Enters the WiFi setup mode.
          */
         void _enterWifiSetupMode();
+
+        /**
+         * @brief Attempts to connect to WiFi and sync time, then starts normal operation.
+         */
+        void _connectAndSync();
     };
 
 } // namespace aviator_clock

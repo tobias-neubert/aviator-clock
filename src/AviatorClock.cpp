@@ -117,25 +117,24 @@ namespace aviator_clock
         // But to be safe and ensure consistent state if we booted with credentials:
         
         if (!_wifiManager.isSetupModeActive()) {
-            // Only force connection initiate if we are NOT in setup mode.
-            // If setup mode was just active, it will handle connection on exit.
-            _wifiManager.begin();
+             // Just booted normally with credentials
+             _connectAndSync();
         } else {
-             // If setup mode IS active (e.g. user triggered it during the wait loop above?),
-             // we should wait for it to finish?
-             // Actually, the loop `while(!hasCredentials)` exits when credentials appear.
-             // But Setup Mode might still be sending the "Saved" response HTML.
-             // We should wait until Setup Mode is officially done.
-             
-             _soc.getLogger().i(TAG, "Waiting for Setup Mode to complete cleanup...");
+             _soc.getLogger().i(TAG, "Setup Mode is active. Waiting for completion...");
              while (_wifiManager.isSetupModeActive()) {
                  _soc.getSleeper().sleep(100);
              }
-             _soc.getLogger().i(TAG, "Setup Mode completed.");
-             // Now we can be sure connection logic has been triggered by the Setup Task cleanup.
+             _soc.getLogger().i(TAG, "Setup Mode completed. Connecting...");
+             _connectAndSync();
         }
-        
+    }
+    
+    void AviatorClock::_connectAndSync() {
         // --- 1. Wait for WiFi Connection ---
+        if (!_wifiManager.isConnected()) {
+             _wifiManager.begin();
+        }
+
         _soc.getLogger().i(TAG, "Waiting for WiFi connection...");
         unsigned long startWait = _soc.getTimeProvider().millis();
         // Give it up to 15 seconds to connect
@@ -156,15 +155,14 @@ namespace aviator_clock
              
              if (_soc.getTimeProvider().now() > 0) {
                  _soc.getLogger().i(TAG, "NTP System Time is valid. Starting motors.");
+                 _startNormalOperation();
              } else {
-                 _soc.getLogger().w(TAG, "NTP Time sync timed out (20s). Starting motors with invalid time.");
+                 _soc.getLogger().e(TAG, "NTP Time sync timed out (20s). Clock will NOT start.");
              }
 
         } else {
-             _soc.getLogger().w(TAG, "WiFi connection timed out (15s). Starting motors in offline mode.");
+             _soc.getLogger().e(TAG, "WiFi connection timed out (15s). Clock will NOT start.");
         }
-        
-        _startNormalOperation();
     }
 
     bool AviatorClock::_checkForSetupModeActivationAtBoot()
@@ -199,10 +197,22 @@ namespace aviator_clock
     void AviatorClock::buttonMonitoringTask()
     {
         _soc.getLogger().i(TAG, "Button monitoring task running.");
+        bool wasInSetupMode = _wifiManager.isSetupModeActive();
+
         while (true)
         {
             _setupButton->update();
             
+            // Check for state change from API or other tasks
+            bool isInSetupMode = _wifiManager.isSetupModeActive();
+            if (wasInSetupMode && !isInSetupMode) {
+                 // Falling edge: Setup mode just ended.
+                 // This happens if API called stopSetupMode OR if button logic below called it.
+                 _soc.getLogger().i(TAG, "Setup Mode ended detected. Attempting to connect...");
+                 _connectAndSync();
+            }
+            wasInSetupMode = isInSetupMode;
+
             if (_setupButton->wasLongPressed())
             {
                 // 3 seconds passed.
@@ -241,6 +251,7 @@ namespace aviator_clock
                     _soc.getLogger().i(TAG, "Toggling WiFi setup.");
                     if (_wifiManager.isSetupModeActive()) {
                         _wifiManager.stopSetupMode();
+                        // Connection attempt will be triggered by the polling loop above (falling edge detection)
                     } else {
                         _enterWifiSetupMode();
                     }
