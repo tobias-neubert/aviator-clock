@@ -6,7 +6,9 @@ static const char* TAG = "NtpTime";
 
 // Define the NTP server to use. "pool.ntp.org" globally or
 // for better regional performance, maybe "de.pool.ntp.org" for Germany.
-const char *NTP_SERVER = "pool.ntp.org";
+const char *NTP_SERVER_1 = "pool.ntp.org";
+const char *NTP_SERVER_2 = "time.google.com";
+const char *NTP_SERVER_3 = "time.windows.com";
 
 // Timezone configuration for Germany (Europe/Berlin).
 // CET-1CEST,M3.5.0,M10.5.0/3
@@ -29,7 +31,7 @@ namespace soc
             // Configure time using timezone and NTP server
             // This function sets up the ESP32 to query the NTP server and apply the timezone rule.
             // It runs in the background and will sync whenever WiFi is available.
-            configTzTime(TIME_ZONE, NTP_SERVER);
+            configTzTime(TIME_ZONE, NTP_SERVER_1, NTP_SERVER_2, NTP_SERVER_3);
             
             _logger.i(TAG, "NTP Time configured. Waiting for WiFi to sync...");
 
