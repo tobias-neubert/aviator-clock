@@ -95,6 +95,23 @@ namespace aviator_clock
       if (_task) {
           _task.reset();
       }
+
+      if (_stepperMotor)
+      {
+          _logger.i(TAG, "ClockHand::stop() - Ensuring motor is stopped and IDLE.");
+          _stepperMotor->stop();
+          
+          // Pump update() until the motor internal state is IDLE (completed deceleration)
+          // limit iterations to prevent infinite loops.
+          // Using sleep(0) allows yielding but returning immediately to process updates fast.
+          int safety = 5000; 
+          while (_stepperMotor->isBusy() && safety-- > 0)
+          {
+              _stepperMotor->update();
+              _soc.getSleeper().sleep(0);
+          }
+      }
+
       _shouldStop = false; // Reset for next start
   }
 
@@ -105,6 +122,14 @@ namespace aviator_clock
           return;
       }
       moveToDisplayValue(value);
+
+      // Since there is no task running to drive the motor, we must do it synchronously.
+      // We use sleep(0) to yield but poll as fast as possible.
+      while (_stepperMotor->isBusy())
+      {
+          _stepperMotor->update();
+          _soc.getSleeper().sleep(0); 
+      }
   }
 
   void ClockHand::taskLoop()
