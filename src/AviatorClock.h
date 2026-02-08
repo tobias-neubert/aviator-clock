@@ -96,10 +96,10 @@ namespace aviator_clock
         static constexpr uint8_t SWITCH_PIN_BIT0 = 26;
         static constexpr uint8_t SWITCH_PIN_BIT1 = 27;
         static constexpr uint8_t SWITCH_PIN_BIT2 = 32;
-        static constexpr uint8_t ENCODER_MINUTE_PIN_A = 5;
-        static constexpr uint8_t ENCODER_MINUTE_PIN_B = 18;
-        static constexpr uint8_t ENCODER_HOUR_PIN_A = 36;
-        static constexpr uint8_t ENCODER_HOUR_PIN_B = 39;
+        static constexpr uint8_t ENCODER_MINUTE_PIN_A = 36;
+        static constexpr uint8_t ENCODER_MINUTE_PIN_B = 39;
+        static constexpr uint8_t ENCODER_HOUR_PIN_A = 5;
+        static constexpr uint8_t ENCODER_HOUR_PIN_B = 4;
         
         static constexpr int ENCODER_STEPS = 4;
 

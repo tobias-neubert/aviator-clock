@@ -368,14 +368,14 @@ namespace aviator_clock
         _minuteEncoder->update();
         int32_t deltaMin = _minuteEncoder->getDelta();
         if (deltaMin != 0) {
-            _soc.getLogger().i(TAG, "Min Delta: %d", deltaMin);
+            _soc.getLogger().d(TAG, "Min Delta: %d", deltaMin);
             _timeEditor->adjustMinutes(deltaMin);
         }
 
         _hourEncoder->update();
         int32_t deltaHour = _hourEncoder->getDelta();
         if (deltaHour != 0) {
-            _soc.getLogger().i(TAG, "Hour Delta: %d", deltaHour);
+            _soc.getLogger().d(TAG, "Hour Delta: %d", deltaHour);
             _timeEditor->adjustHours(deltaHour);
         }
 
