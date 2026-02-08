@@ -32,6 +32,12 @@ namespace aviator_clock
     void start();
     
     /**
+     * @brief Resumes the task loop without performing a homing sequence.
+     * Assumes the hand is already calibrated/homed.
+     */
+    void resume();
+    
+    /**
      * @brief Stops the internal task loop.
      */
     void stop();
@@ -67,5 +73,7 @@ namespace aviator_clock
     int _lastDisplayValue;
     double _motorSpeedDps;
     double _motorAccelerationDps2;
+    // Flag to indicate if the next task start should skip homing (set via resume())
+    bool _skipHomingOnNextStart{false};
   };
 } // namespace aviator_clock

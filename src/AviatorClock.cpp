@@ -337,8 +337,11 @@ namespace aviator_clock
         _alarmRepo->setAlarm(_lastSelectedSlot, t);
         
         // Resume normal operation
-        // This restarts the task, which will re-home and sync with NTP
-        _startNormalOperation(); 
+        // This restarts the task, but we use resume() to skip homing
+        if (_secondHand) {
+            _secondHand->resume();
+            _soc.getLogger().i(TAG, "ClockHand task resumed.");
+        }
     }
 
     void AviatorClock::_updateAlarmSetup() {

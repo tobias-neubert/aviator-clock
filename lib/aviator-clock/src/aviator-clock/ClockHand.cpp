@@ -81,6 +81,13 @@ namespace aviator_clock
     _task = _soc.createTask(task_logic, task_name, 4096 * 2);
   }
 
+  void ClockHand::resume()
+  {
+      _logger.i(TAG, "ClockHand::resume() - Resuming task (skipping homing).");
+      _skipHomingOnNextStart = true;
+      start(); 
+  }
+
   void ClockHand::stop()
   {
       _logger.i(TAG, "ClockHand::stop() - Stopping task.");
@@ -108,7 +115,18 @@ namespace aviator_clock
       return;
     }
 
-    if (runHomingSequence())
+    bool homingSuccessful = true;
+    if (_skipHomingOnNextStart) {
+         _logger.i(TAG, "ClockHand Task: Skipping homing sequence as requested.");
+         _skipHomingOnNextStart = false; // Reset flag
+         // We assume the motor is already enabled and at a known position from previous run
+         // But to be safe, we re-enable it.
+         _stepperMotor->enable();
+    } else {
+         homingSuccessful = runHomingSequence();
+    }
+
+    if (homingSuccessful)
     {
       if (setInitialPosition())
       {
