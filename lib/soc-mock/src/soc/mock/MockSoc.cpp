@@ -13,6 +13,7 @@ namespace soc
     {
       m_timeProvider = std::make_unique<MockTime>();
       m_sleeper = std::make_unique<MockSleeper>();
+      m_persistentStorage = std::make_unique<MockPersistentStorage>();
     }
 
     // The destructor can now be defaulted in the header, but it's also fine here.
@@ -21,11 +22,18 @@ namespace soc
     soc::api::Logger &MockSoc::getLogger() { return m_logger; }
     soc::api::ITime &MockSoc::getTimeProvider() { return *m_timeProvider; }
     soc::api::ISleeper &MockSoc::getSleeper() { return *m_sleeper; }
+    soc::api::IPersistentStorage &MockSoc::getPersistentStorage() { return *m_persistentStorage; }
 
     std::unique_ptr<soc::api::IDigitalInput> MockSoc::createDigitalInput(
         int pin, bool pullup)
     {
       return std::make_unique<MockDigitalInput>(pin, pullup);
+    }
+    
+    std::unique_ptr<soc::api::IRotaryEncoder> MockSoc::createRotaryEncoder(
+        int pinA, int pinB, int stepsPerNotch)
+    {
+      return std::make_unique<MockRotaryEncoder>();
     }
 
     std::unique_ptr<soc::api::ITask> MockSoc::createTask(

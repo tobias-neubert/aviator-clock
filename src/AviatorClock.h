@@ -2,13 +2,38 @@
 
 #include <soc/api/ISoc.h>
 #include <memory>
+#include <vector>
 
 // Forward declarations to avoid including full headers here
-namespace soc { namespace api { class IDigitalInput; } }
-namespace stepper { namespace api { class IStepperController; class IHomingStrategy; } }
-namespace wifi { namespace api { class IWifiManager; } }
+namespace soc
+{
+    namespace api
+    {
+        class IDigitalInput;
+        class IRotaryEncoder;
+    }
+}
+namespace stepper
+{
+    namespace api
+    {
+        class IStepperController;
+        class IHomingStrategy;
+    }
+}
+namespace wifi
+{
+    namespace api
+    {
+        class IWifiManager;
+    }
+}
 class IButton;
+class SwitchGroup;
 #include "aviator-clock/ClockHand.h"
+#include "aviator-clock/Time.h"
+#include "aviator-clock/AlarmRepository.h"
+#include "aviator-clock/TimeEditor.h"
 
 namespace aviator_clock
 {
@@ -65,6 +90,14 @@ namespace aviator_clock
         static constexpr double SHARP_TICK_SPEED_DPS = 360.0;
         static constexpr double SHARP_TICK_ACCELERATION_DPS2 = 1000.0;
 
+        enum class State
+        {
+            Initial,
+            NormalRunning,
+            AlarmSetup,
+            WifiSetup
+        };
+
         // --- Core Dependencies ---
         soc::api::ISoc &_soc;
         wifi::api::IWifiManager &_wifiManager;
@@ -77,6 +110,24 @@ namespace aviator_clock
         std::unique_ptr<stepper::api::IHomingStrategy> _homingStrategy;
         std::unique_ptr<ClockHand> _secondHand;
         std::unique_ptr<soc::api::ITask> _buttonTask;
+
+        // --- Alarm Setup Components ---
+        std::unique_ptr<soc::api::IDigitalInput> _modeButtonPin;
+        std::unique_ptr<IButton> _modeButton;
+        std::unique_ptr<soc::api::IRotaryEncoder> _rotaryEncoder;
+
+        // Switch Group Inputs
+        std::unique_ptr<soc::api::IDigitalInput> _switchBit0;
+        std::unique_ptr<soc::api::IDigitalInput> _switchBit1;
+        std::unique_ptr<soc::api::IDigitalInput> _switchBit2;
+        std::unique_ptr<SwitchGroup> _switchGroup;
+
+        // Logic
+        std::unique_ptr<class AlarmRepository> _alarmRepo; // Forward decl was not used, header included
+        std::unique_ptr<class TimeEditor> _timeEditor;
+
+        State _currentState{State::Initial};
+        uint8_t _lastSelectedSlot{255}; // Invalid init
 
         /**
          * @brief The main loop for the button monitoring task.
@@ -94,6 +145,11 @@ namespace aviator_clock
          * @brief Starts the normal clock operation.
          */
         void _startNormalOperation();
+
+        // --- Alarm Setup Helpers ---
+        void _enterAlarmSetup();
+        void _updateAlarmSetup();
+        void _exitAlarmSetup();
 
         /**
          * @brief Enters the WiFi setup mode.

@@ -7,6 +7,8 @@
 #include "ITask.h"
 #include "ITime.h"
 #include "Logger.h"
+#include "IPersistentStorage.h"
+#include "IRotaryEncoder.h"
 
 namespace soc
 {
@@ -38,6 +40,11 @@ namespace soc
              * @brief Gets a reference to the system-wide sleeper.
              */
             virtual ISleeper &getSleeper() = 0;
+            
+            /**
+             * @brief Gets a reference to the persistent storage.
+             */
+            virtual IPersistentStorage &getPersistentStorage() = 0;
 
             /**
              * @brief Factory method to create a digital input pin.
@@ -48,6 +55,15 @@ namespace soc
              */
             virtual std::unique_ptr<IDigitalInput> createDigitalInput(int pin,
                                                                       bool pullup) = 0;
+
+             /**
+             * @brief Factory method to create a rotary encoder.
+             * @param pinA GPIO pin for phase A.
+             * @param pinB GPIO pin for phase B.
+             * @param stepsPerNotch Number of pulses per physical click (notch).
+             * @return A unique_ptr to the created IRotaryEncoder instance.
+             */
+            virtual std::unique_ptr<IRotaryEncoder> createRotaryEncoder(int pinA, int pinB, int stepsPerNotch = 4) = 0;
 
             /**
              * @brief Factory method to create and start a new RTOS task.

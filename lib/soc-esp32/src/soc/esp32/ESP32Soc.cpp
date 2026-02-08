@@ -1,5 +1,6 @@
 #include <soc/esp32/ESP32Soc.h>
 #include <soc/esp32/ESP32Task.h>
+#include "soc/esp32/ESP32RotaryEncoder.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <memory>
@@ -48,6 +49,7 @@ namespace soc
       // Initialization that can fail or takes time is done in init().
       m_timeProvider = std::make_unique<NtpTime>(m_logger);
       m_sleeper = std::make_unique<ESP32Sleeper>();
+      m_persistentStorage = std::make_unique<ESP32PersistentStorage>();
     }
 
     void ESP32Soc::init()
@@ -78,6 +80,11 @@ namespace soc
       return *m_sleeper;
     }
 
+    soc::api::IPersistentStorage &ESP32Soc::getPersistentStorage()
+    {
+      return *m_persistentStorage;
+    }
+
     std::unique_ptr<soc::api::IDigitalInput> ESP32Soc::createDigitalInput(
         int pin, bool pullup)
     {
@@ -87,6 +94,12 @@ namespace soc
       return input;
     }
 
+    std::unique_ptr<soc::api::IRotaryEncoder> ESP32Soc::createRotaryEncoder(
+        int pinA, int pinB, int stepsPerNotch)
+    {
+        return std::make_unique<ESP32RotaryEncoder>(pinA, pinB, stepsPerNotch);
+    }
+    
     std::unique_ptr<soc::api::ITask> ESP32Soc::createTask(
         soc::api::TaskFunction_t taskFunction, const std::string &name,
         unsigned int stackSize, unsigned int priority)

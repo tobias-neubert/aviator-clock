@@ -40,6 +40,27 @@ namespace aviator_clock
         _setupButtonPin->begin();
         _setupButton = std::make_unique<LongPressButton>(_soc, *_setupButtonPin);
 
+        // --- Alarm Setup Hardware ---
+        // Mode Button (Pin 13)
+        _modeButtonPin = _soc.createDigitalInput(13, true); 
+        _modeButtonPin->begin();
+        _modeButton = std::make_unique<LongPressButton>(_soc, *_modeButtonPin, 3000); // 3s long press
+
+        // Switches (26, 27, 32)
+        _switchBit0 = _soc.createDigitalInput(26, true); _switchBit0->begin();
+        _switchBit1 = _soc.createDigitalInput(27, true); _switchBit1->begin();
+        _switchBit2 = _soc.createDigitalInput(32, true); _switchBit2->begin();
+        _switchGroup = std::make_unique<SwitchGroup>(*_switchBit0, *_switchBit1, *_switchBit2);
+
+        // Rotary Encoder (34, 35)
+        _rotaryEncoder = _soc.createRotaryEncoder(34, 35, 4);
+
+        // --- Logic Components ---
+        _alarmRepo = std::make_unique<AlarmRepository>(_soc.getPersistentStorage());
+        _alarmRepo->begin();
+        
+        _timeEditor = std::make_unique<TimeEditor>();
+
         _accelWrapper = std::make_unique<stepper::accel::AccelStepperWrapper>(STEP_PIN_HW, DIR_PIN_HW);
         _soc.getLogger().i(TAG, "Level 0 components created.");
 
