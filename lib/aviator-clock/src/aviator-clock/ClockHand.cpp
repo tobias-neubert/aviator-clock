@@ -81,6 +81,25 @@ namespace aviator_clock
     _task = _soc.createTask(task_logic, task_name, 4096 * 2);
   }
 
+  void ClockHand::stop()
+  {
+      _logger.i(TAG, "ClockHand::stop() - Stopping task.");
+      _shouldStop = true;
+      if (_task) {
+          _task.reset();
+      }
+      _shouldStop = false; // Reset for next start
+  }
+
+  void ClockHand::moveToValue(int value) 
+  {
+      if (_task) {
+          _logger.w(TAG, "moveToValue called while task is running. Stop task first.");
+          return;
+      }
+      moveToDisplayValue(value);
+  }
+
   void ClockHand::taskLoop()
   {
     if (!_stepperMotor)

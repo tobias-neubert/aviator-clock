@@ -10,6 +10,8 @@
 #include <stepper/accel/AccelStepperMotor.h>
 #include <stepper/homing/PreciseOneWayHomingStrategy.h>
 #include <buttons/impl/LongPressButton.h>
+#include <buttons/impl/SwitchGroup.h>
+#include <soc/api/IRotaryEncoder.h>
 #include "aviator-clock/ClockHand.h"
 #include <wifi/api/IWifiManager.h>
 
@@ -42,18 +44,19 @@ namespace aviator_clock
 
         // --- Alarm Setup Hardware ---
         // Mode Button (Pin 13)
-        _modeButtonPin = _soc.createDigitalInput(13, true); 
+        _modeButtonPin = _soc.createDigitalInput(MODE_BUTTON_PIN, true); 
         _modeButtonPin->begin();
-        _modeButton = std::make_unique<LongPressButton>(_soc, *_modeButtonPin, 3000); // 3s long press
+        _modeButton = std::make_unique<LongPressButton>(_soc, *_modeButtonPin, SETUP_MODE_TOGGLE_MS); // 3s long press
 
         // Switches (26, 27, 32)
-        _switchBit0 = _soc.createDigitalInput(26, true); _switchBit0->begin();
-        _switchBit1 = _soc.createDigitalInput(27, true); _switchBit1->begin();
-        _switchBit2 = _soc.createDigitalInput(32, true); _switchBit2->begin();
+        _switchBit0 = _soc.createDigitalInput(SWITCH_PIN_BIT0, true); _switchBit0->begin();
+        _switchBit1 = _soc.createDigitalInput(SWITCH_PIN_BIT1, true); _switchBit1->begin();
+        _switchBit2 = _soc.createDigitalInput(SWITCH_PIN_BIT2, true); _switchBit2->begin();
         _switchGroup = std::make_unique<SwitchGroup>(*_switchBit0, *_switchBit1, *_switchBit2);
 
-        // Rotary Encoder (34, 35)
-        _rotaryEncoder = _soc.createRotaryEncoder(34, 35, 4);
+        // Rotary Encoders
+        _minuteEncoder = _soc.createRotaryEncoder(ENCODER_MINUTE_PIN_A, ENCODER_MINUTE_PIN_B, ENCODER_STEPS);
+        _hourEncoder = _soc.createRotaryEncoder(ENCODER_HOUR_PIN_A, ENCODER_HOUR_PIN_B, ENCODER_STEPS);
 
         // --- Logic Components ---
         _alarmRepo = std::make_unique<AlarmRepository>(_soc.getPersistentStorage());
@@ -66,11 +69,11 @@ namespace aviator_clock
 
         // Configuration for the new Homing Strategy
         stepper::homing::PreciseOneWayHomingStrategy::Config homingConfig{
-            .homingSpeed = 200.0f,
-            .homingAcceleration = 1000.0f,
-            .maxHomingTravel = EFFECTIVE_STEPS_PER_REVOLUTION * 2,
-            .moveDirection = 1,
-            .backOffDistance = 100
+            .homingSpeed = HOMING_SPEED_STEPS_SEC,
+            .homingAcceleration = HOMING_ACCEL_STEPS_SEC2,
+            .maxHomingTravel = EFFECTIVE_STEPS_PER_REVOLUTION * MAX_HOMING_TRAVEL_REVOLUTIONS,
+            .moveDirection = HOMING_DIRECTION,
+            .backOffDistance = HOMING_BACKOFF_STEPS
         };
 
         // Instantiate the new PreciseOneWayHomingStrategy
@@ -159,7 +162,7 @@ namespace aviator_clock
         _soc.getLogger().i(TAG, "Waiting for WiFi connection...");
         unsigned long startWait = _soc.getTimeProvider().millis();
         // Give it up to 15 seconds to connect
-        while (!_wifiManager.isConnected() && (_soc.getTimeProvider().millis() - startWait < 15000)) {
+        while (!_wifiManager.isConnected() && (_soc.getTimeProvider().millis() - startWait < WIFI_CONNECT_TIMEOUT_MS)) {
             _soc.getSleeper().sleep(100);
         }
 
@@ -170,7 +173,7 @@ namespace aviator_clock
              _soc.getLogger().i(TAG, "Waiting for NTP time sync...");
              unsigned long startNtp = _soc.getTimeProvider().millis();
              // Give it up to 20 seconds to sync time
-             while (_soc.getTimeProvider().now() == 0 && (_soc.getTimeProvider().millis() - startNtp < 20000)) {
+             while (_soc.getTimeProvider().now() == 0 && (_soc.getTimeProvider().millis() - startNtp < NTP_SYNC_TIMEOUT_MS)) {
                  _soc.getSleeper().sleep(100);
              }
              
@@ -196,6 +199,7 @@ namespace aviator_clock
 
     void AviatorClock::_startNormalOperation()
     {
+        _currentState = State::NormalRunning;
         if (_secondHand)
         {
             _secondHand->start();
@@ -222,13 +226,27 @@ namespace aviator_clock
 
         while (true)
         {
+            // --- Update Inputs ---
             _setupButton->update();
-            
-            // Check for state change from API or other tasks
+            _modeButton->update();
+
+            // --- 1. Mode Switching Logic (Alarm Setup) ---
+            if (_modeButton->wasLongPressed()) {
+                if (_currentState == State::NormalRunning) {
+                    _enterAlarmSetup();
+                } else if (_currentState == State::AlarmSetup) {
+                    _exitAlarmSetup();
+                }
+            }
+
+            // --- 2. Alarm Setup Logic ---
+            if (_currentState == State::AlarmSetup) {
+                _updateAlarmSetup();
+            }
+
+            // --- 3. WiFi Setup Logic (Legacy / Setup Button) ---
             bool isInSetupMode = _wifiManager.isSetupModeActive();
             if (wasInSetupMode && !isInSetupMode) {
-                 // Falling edge: Setup mode just ended.
-                 // This happens if API called stopSetupMode OR if button logic below called it.
                  _soc.getLogger().i(TAG, "Setup Mode ended detected. Attempting to connect...");
                  _connectAndSync();
             }
@@ -250,22 +268,22 @@ namespace aviator_clock
                     unsigned long now = _soc.getTimeProvider().millis();
                     
                     // Feedback every second
-                    if ((now - startCheck) % 1000 == 0) {
+                    if ((now - startCheck) % RESET_FEEDBACK_INTERVAL_MS == 0) {
                          // Optional: flash LED or log
                     }
 
-                    if (now - startCheck > 7000) {
+                    if (now - startCheck > FACTORY_RESET_EXTRA_WAIT_MS) {
                         resetTriggered = true;
                         break; 
                     }
-                    _soc.getSleeper().sleep(50);
+                    _soc.getSleeper().sleep(RESET_POLL_INTERVAL_MS);
                 }
 
                 if (resetTriggered) {
                     _soc.getLogger().e(TAG, "FACTORY RESET TRIGGERED (10s press)!");
                     _wifiManager.resetCredentials();
                     _soc.getLogger().i(TAG, "Restarting system...");
-                    _soc.getSleeper().sleep(1000);
+                    _soc.getSleeper().sleep(RESTART_DELAY_MS);
                     ESP.restart();
                 } else {
                     // Normal 3s action: Toggle Setup Mode
@@ -278,7 +296,92 @@ namespace aviator_clock
                     }
                 }
             }
-            _soc.getSleeper().sleep(20); // Check every 20ms
+            _soc.getSleeper().sleep(BUTTON_POLL_INTERVAL_MS); // Check every 20ms
+        }
+    }
+
+    // --- Alarm Setup Implementation ---
+
+    void AviatorClock::_enterAlarmSetup() {
+        _soc.getLogger().i(TAG, "Entering Alarm Setup Mode");
+        _currentState = State::AlarmSetup;
+        
+        // Stop normal ticking
+        if (_secondHand) _secondHand->stop();
+        
+        // Reset encoders
+        _minuteEncoder->reset();
+        _hourEncoder->reset();
+        
+        // Read current slot
+        _lastSelectedSlot = _switchGroup->read();
+        _soc.getLogger().i(TAG, "Selected Slot: %d", _lastSelectedSlot);
+
+        // Load time for slot
+        Time t = _alarmRepo->getAlarm(_lastSelectedSlot);
+        _timeEditor->setTime(t);
+        
+        // Move hands
+        if (_secondHand) {
+            // Move to AM/PM pos
+            _secondHand->moveToValue(_timeEditor->getSecondHandTarget());
+        }
+    }
+
+    void AviatorClock::_exitAlarmSetup() {
+        _soc.getLogger().i(TAG, "Exiting Alarm Setup Mode");
+        _currentState = State::NormalRunning;
+        
+        // Save current slot
+        Time t = _timeEditor->getTime();
+        _alarmRepo->setAlarm(_lastSelectedSlot, t);
+        
+        // Resume normal operation
+        // This restarts the task, which will re-home and sync with NTP
+        _startNormalOperation(); 
+    }
+
+    void AviatorClock::_updateAlarmSetup() {
+        // 1. Check Slot Change
+        uint8_t currentSlot = _switchGroup->read();
+        if (currentSlot != _lastSelectedSlot) {
+             _soc.getLogger().i(TAG, "Slot changed to: %d", currentSlot);
+             
+            // Save previous
+            Time t = _timeEditor->getTime();
+            _alarmRepo->setAlarm(_lastSelectedSlot, t);
+            
+            // Load new
+            _lastSelectedSlot = currentSlot;
+            Time newTime = _alarmRepo->getAlarm(currentSlot);
+            _timeEditor->setTime(newTime);
+            
+            // Update Hands
+            if (_secondHand) _secondHand->moveToValue(_timeEditor->getSecondHandTarget());
+            // TODO: Move Minute Hand (once available) to display newTime.minutes
+        }
+        
+        // 2. Read Encoders
+        _minuteEncoder->update();
+        int32_t deltaMin = _minuteEncoder->getDelta();
+        if (deltaMin != 0) {
+            _soc.getLogger().i(TAG, "Min Delta: %d", deltaMin);
+            _timeEditor->adjustMinutes(deltaMin);
+        }
+
+        _hourEncoder->update();
+        int32_t deltaHour = _hourEncoder->getDelta();
+        if (deltaHour != 0) {
+            _soc.getLogger().i(TAG, "Hour Delta: %d", deltaHour);
+            _timeEditor->adjustHours(deltaHour);
+        }
+
+        // Update Hands if time changed
+        if (deltaMin != 0 || deltaHour != 0) {
+             // The second hand indicates AM/PM. Only move if AM/PM changed.
+            if (_secondHand) _secondHand->moveToValue(_timeEditor->getSecondHandTarget());
+            
+            // TODO: Move Minute/Hour Hand to reflect changes
         }
     }
 

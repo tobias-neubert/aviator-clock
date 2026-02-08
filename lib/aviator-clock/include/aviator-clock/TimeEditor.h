@@ -9,6 +9,11 @@ namespace aviator_clock
     class TimeEditor
     {
     public:
+        static constexpr int HOURS_PER_DAY = 24;
+        static constexpr int MINUTES_PER_HOUR = 60;
+        static constexpr int AM_INDICATOR_VALUE = 0;
+        static constexpr int PM_INDICATOR_VALUE = 30;
+
         explicit TimeEditor(const Time &initialTime = {0, 0, 0}) : _currentTime(initialTime) {}
 
         void setTime(const Time &time)
@@ -22,9 +27,9 @@ namespace aviator_clock
 
             // Handle wrap around 0-23
             while (newHours < 0)
-                newHours += 24;
-            while (newHours >= 24)
-                newHours -= 24;
+                newHours += HOURS_PER_DAY;
+            while (newHours >= HOURS_PER_DAY)
+                newHours -= HOURS_PER_DAY;
 
             _currentTime.hours = static_cast<uint8_t>(newHours);
         }
@@ -35,9 +40,9 @@ namespace aviator_clock
 
             // Handle wrap around 0-59
             while (newMinutes < 0)
-                newMinutes += 60;
-            while (newMinutes >= 60)
-                newMinutes -= 60;
+                newMinutes += MINUTES_PER_HOUR;
+            while (newMinutes >= MINUTES_PER_HOUR)
+                newMinutes -= MINUTES_PER_HOUR;
 
             _currentTime.minutes = static_cast<uint8_t>(newMinutes);
         }
@@ -64,7 +69,7 @@ namespace aviator_clock
          */
         uint8_t getSecondHandTarget() const
         {
-            return isAM() ? 0 : 30;
+            return isAM() ? AM_INDICATOR_VALUE : PM_INDICATOR_VALUE;
         }
 
     private:

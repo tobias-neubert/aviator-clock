@@ -47,6 +47,18 @@ namespace aviator_clock
     class AviatorClock
     {
     public:
+        // --- Constants ---
+        static constexpr unsigned long WIFI_CONNECT_TIMEOUT_MS = 15000;
+        static constexpr unsigned long NTP_SYNC_TIMEOUT_MS = 20000;
+        static constexpr unsigned long FACTORY_RESET_HOLD_MS = 10000;
+        static constexpr unsigned long SETUP_MODE_TOGGLE_MS = 3000;
+        static constexpr unsigned long FACTORY_RESET_EXTRA_WAIT_MS = FACTORY_RESET_HOLD_MS - SETUP_MODE_TOGGLE_MS; 
+        static constexpr unsigned long BUTTON_POLL_INTERVAL_MS = 20;
+        static constexpr unsigned long RESET_POLL_INTERVAL_MS = 50;
+        static constexpr unsigned long RESET_FEEDBACK_INTERVAL_MS = 1000;
+        static constexpr unsigned long RESTART_DELAY_MS = 1000;
+        static constexpr uint8_t INVALID_SLOT = 255;
+
         /**
          * @brief Construct a new Aviator Clock object.
          * @param soc A reference to the underlying System-on-a-Chip services.
@@ -79,9 +91,25 @@ namespace aviator_clock
         static constexpr uint8_t HALL_SENSOR_PIN = 25;
         static constexpr uint8_t ENABLE_PIN_HW = 33;
         static constexpr uint8_t SETUP_BUTTON_PIN = 15;
+        
+        static constexpr uint8_t MODE_BUTTON_PIN = 2;
+        static constexpr uint8_t SWITCH_PIN_BIT0 = 26;
+        static constexpr uint8_t SWITCH_PIN_BIT1 = 27;
+        static constexpr uint8_t SWITCH_PIN_BIT2 = 32;
+        static constexpr uint8_t ENCODER_MINUTE_PIN_A = 5;
+        static constexpr uint8_t ENCODER_MINUTE_PIN_B = 18;
+        static constexpr uint8_t ENCODER_HOUR_PIN_A = 36;
+        static constexpr uint8_t ENCODER_HOUR_PIN_B = 39;
+        
+        static constexpr int ENCODER_STEPS = 4;
 
         // --- Motor Configuration ---
         static constexpr int EFFECTIVE_STEPS_PER_REVOLUTION = 1600;
+        static constexpr float HOMING_SPEED_STEPS_SEC = 200.0f;
+        static constexpr float HOMING_ACCEL_STEPS_SEC2 = 1000.0f;
+        static constexpr long HOMING_BACKOFF_STEPS = 100;
+        static constexpr long MAX_HOMING_TRAVEL_REVOLUTIONS = 2;
+        static constexpr int HOMING_DIRECTION = 1;
 
         // --- Clock Face Configuration ---
         static constexpr double DIAL_TOTAL_ACTIVE_ANGLE = 330.0;
@@ -114,7 +142,8 @@ namespace aviator_clock
         // --- Alarm Setup Components ---
         std::unique_ptr<soc::api::IDigitalInput> _modeButtonPin;
         std::unique_ptr<IButton> _modeButton;
-        std::unique_ptr<soc::api::IRotaryEncoder> _rotaryEncoder;
+        std::unique_ptr<soc::api::IRotaryEncoder> _minuteEncoder;
+        std::unique_ptr<soc::api::IRotaryEncoder> _hourEncoder;
 
         // Switch Group Inputs
         std::unique_ptr<soc::api::IDigitalInput> _switchBit0;
@@ -127,7 +156,7 @@ namespace aviator_clock
         std::unique_ptr<class TimeEditor> _timeEditor;
 
         State _currentState{State::Initial};
-        uint8_t _lastSelectedSlot{255}; // Invalid init
+        uint8_t _lastSelectedSlot{INVALID_SLOT};
 
         /**
          * @brief The main loop for the button monitoring task.

@@ -30,13 +30,25 @@ namespace aviator_clock
     void setup();
     void teardown();
     void start();
+    
+    /**
+     * @brief Stops the internal task loop.
+     */
+    void stop();
+
+    /**
+     * @brief Moves the hand to a specific display value (e.g. 0-60 for minutes/seconds).
+     * Only valid if the hand is homed and not running its internal task loop.
+     * @param value The value to display.
+     */
+    void moveToValue(int value);
 
   private:
     /**
      * @brief The main task loop with simplified, blocking-style logic.
      */
     void taskLoop();
-    void moveToDisplayValue(int value);
+    void moveToDisplayValue(int value); // Internal helper
     bool runHomingSequence();
     bool setInitialPosition();
     void runTickingLoop();
