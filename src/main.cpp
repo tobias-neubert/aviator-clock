@@ -28,7 +28,7 @@ void setup()
   esp32Soc->init();
   g_soc = std::move(esp32Soc);
 
-  // Set the log level to INFO (ignoring DEBUG messages)
+  // Set the log level
   g_soc->getLogger().setLogLevel(soc::api::LogLevel::INFO);
 
   g_soc->getLogger().i("main", "=================================================");
