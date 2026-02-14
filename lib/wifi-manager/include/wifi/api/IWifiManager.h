@@ -19,6 +19,13 @@ namespace wifi
             virtual void begin() = 0;
 
             /**
+             * @brief Attempts to connect to WiFi, blocking until connected or timeout.
+             * @param timeoutMs Maximum time to wait in milliseconds.
+             * @return true if connected, false if timeout occurred.
+             */
+            virtual bool connect(unsigned long timeoutMs) = 0;
+
+            /**
              * @brief Starts the Setup Mode (AP + WebServer).
              * This should disconnect current station and start AP.
              */

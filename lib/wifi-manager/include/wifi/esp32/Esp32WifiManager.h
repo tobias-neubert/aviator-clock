@@ -22,6 +22,7 @@ namespace wifi
             virtual ~Esp32WifiManager();
 
             void begin() override;
+            bool connect(unsigned long timeoutMs) override;
             void startSetupMode() override;
             void stopSetupMode() override;
             bool isSetupModeActive() const override;
@@ -33,10 +34,18 @@ namespace wifi
             void _setupRoutes();
             std::string _scanNetworks();
 
+            /**
+             * @brief Checks if the time elapsed since _connectionStartTime exceeds the timeout.
+             */
+            bool _hasTimedOut(unsigned long timeoutMs) const;
+
         private:
             soc::api::ISoc& _soc;
             std::unique_ptr<AsyncWebServer> _server;
             Preferences _preferences;
+            
+            // State
+            unsigned long _connectionStartTime{0};
             
             // _isSetupMode indicates that the Setup Mode is logically active (AP running, Server running).
              volatile bool _isSetupMode = false;

@@ -4,7 +4,15 @@
 #include <memory>
 #include <vector>
 
-// Forward declarations to avoid including full headers here
+// Forward declarations are used to avoid including full headers here.
+// In C++, including a header copies its entire content. 
+// Using forward declarations instead of includes has two main benefits:
+// 1. Decoupling: Changes in the detailed implementation of a class (e.g., adding a 
+//    private method to TimeEditor)
+//    do not force a recompilation of this file and everything that includes it.
+// 2. Build Time: Reduces the amount of code the compiler has to parse for each file.
+// This is possible because we only use pointers or references to these types in the header,
+// so the compiler only needs to know that the class DOES exist, not how big it is.
 namespace soc
 {
     namespace api
@@ -30,13 +38,16 @@ namespace wifi
 }
 class IButton;
 class SwitchGroup;
-#include "aviator-clock/ClockHand.h"
-#include "aviator-clock/Time.h"
-#include "aviator-clock/AlarmRepository.h"
-#include "aviator-clock/TimeEditor.h"
 
 namespace aviator_clock
 {
+    // Forward declarations strictly solely for pointers/references.
+    // This decouples the header from the implementation details of these classes.
+    class ClockHand;
+    class Time;
+    class AlarmRepository;
+    class TimeEditor;
+
     /**
      * @brief The main application class for the Aviator Clock.
      *
@@ -86,25 +97,52 @@ namespace aviator_clock
 
     private:
         // --- Pin and Hardware Configuration ---
-        static constexpr uint8_t DIR_PIN_HW = 12;
-        static constexpr uint8_t STEP_PIN_HW = 14;
-        static constexpr uint8_t HALL_SENSOR_PIN = 25;
-        static constexpr uint8_t ENABLE_PIN_HW = 33;
-        static constexpr uint8_t SETUP_BUTTON_PIN = 15;
+        // These constants define the physical wiring of the ESP32 GPIOs to the external components.
+        // They are encapsulated here because the rest of the application should not care about pin numbers.
+        // The values correspond to the PCB layout documentation.
+
+        // Stepper Motor Driver Interface (A4988/DRV8825 compatible)
+        static constexpr uint8_t PIN_STEPPER_DIRECTION = 12;  // Controls clockwise vs counter-clockwise rotation
+        static constexpr uint8_t PIN_STEPPER_STEP_PULSE = 14; // A pulse here moves the motor one step
+        static constexpr uint8_t PIN_MOTOR_ENABLE = 33;       // Active Low (usually) enable signal for the driver
+
+        // Input Sensors
+        static constexpr uint8_t PIN_HALL_EFFECT_SENSOR = 25; // Used for homing (zero position detection)
         
-        static constexpr uint8_t MODE_BUTTON_PIN = 2;
-        static constexpr uint8_t SWITCH_PIN_BIT0 = 26;
-        static constexpr uint8_t SWITCH_PIN_BIT1 = 27;
-        static constexpr uint8_t SWITCH_PIN_BIT2 = 32;
-        static constexpr uint8_t ENCODER_MINUTE_PIN_A = 36; // Input Only (No Internal Pullup!) - Needs External Resistor
-        static constexpr uint8_t ENCODER_MINUTE_PIN_B = 39; // Input Only (No Internal Pullup!) - Needs External Resistor
-        static constexpr uint8_t ENCODER_HOUR_PIN_A = 5;    // Strap Pin (Must be HIGH at boot) - Has Internal Pullup
-        static constexpr uint8_t ENCODER_HOUR_PIN_B = 4;    // Has Internal Pullup
+        // User Interface Inputs
+        static constexpr uint8_t PIN_SETUP_BUTTON = 15;       // Button to trigger WiFi config mode
+        static constexpr uint8_t PIN_MODE_BUTTON = 2;         // Button to switch display modes (e.g. Clock vs Timer)
         
-        static constexpr int ENCODER_STEPS = 4;
+        // Configuration DIP Switches (Binary Encoded Address/Mode)
+        // Dual In-line package switches with 3 bits allow for 8 unique combinations (0-7)
+        // Used for selecting alarm slots. Allows the user to set 8 different alarms 
+        // without needing a screen.
+        static constexpr uint8_t PIN_DIP_SWITCH_BIT_0 = 26;   // Least Significant Bit
+        static constexpr uint8_t PIN_DIP_SWITCH_BIT_1 = 27;
+        static constexpr uint8_t PIN_DIP_SWITCH_BIT_2 = 32;   // Most Significant Bit
+        
+        // Rotary Encoders (for manual time setting)
+        // Note: Pins 34-39 on ESP32 are input-only and have no internal pull-up resistors.
+        // External pull-up resistors are required on the PCB.
+        static constexpr uint8_t PIN_ENCODER_MINUTE_A = 36; 
+        static constexpr uint8_t PIN_ENCODER_MINUTE_B = 39; 
+        static constexpr uint8_t PIN_ENCODER_HOUR_A = 5;    // Strap Pin (Must be HIGH at boot) - Has Internal Pullup
+        static constexpr uint8_t PIN_ENCODER_HOUR_B = 4;    // Has Internal Pullup
+        
+        static constexpr int ENCODER_STEPS_PER_NOTCH = 4;
 
         // --- Motor Configuration ---
+        // why 1600?: 200 steps/rev * 8 microsteps (accel stepper default?) or similar.
         static constexpr int EFFECTIVE_STEPS_PER_REVOLUTION = 1600;
+        
+        // --- Homing (Calibration) Strategy Configuration ---
+        // These constants define the physical behavior during the self-calibration phase at startup:
+        // 1. Dynamics: Speed & Acceleration used while searching for the zero-point sensor.
+        // 2. Safety Limits: Maximum distance to travel before giving up (prevents continuous 
+        //    spinning if sensor fails).
+        // 3. Direction: Defines if we search clockwise (1) or counter-clockwise (-1).
+        // 4. Fine Tuning: 'Backoff' moves the motor slightly away from the sensor edge to 
+        //ensure clean sensor release.
         static constexpr float HOMING_SPEED_STEPS_SEC = 200.0f;
         static constexpr float HOMING_ACCEL_STEPS_SEC2 = 1000.0f;
         static constexpr long HOMING_BACKOFF_STEPS = 100;
@@ -112,11 +150,16 @@ namespace aviator_clock
         static constexpr int HOMING_DIRECTION = 1;
 
         // --- Clock Face Configuration ---
+        // The total angle that the hand moves across the dial. For a typical clock, 
+        // this would be 360 degrees.
+        // However, if the clock face has a gap (e.g., between 11 and
+        // 0/12, the total active angle might be less than 360. This affects how we 
+        // calculate the angle per unit (e.g., per second or per minute).
         static constexpr double DIAL_TOTAL_ACTIVE_ANGLE = 330.0;
 
         // --- Settings for Smooth Movement ---
-        static constexpr double SHARP_TICK_SPEED_DPS = 360.0;
-        static constexpr double SHARP_TICK_ACCELERATION_DPS2 = 1000.0;
+        static constexpr double SHARP_TICK_SPEED_DEGREES_PER_SECOND = 360.0;
+        static constexpr double SHARP_TICK_ACCELERATION_DEGREES_PER_SECOND_SQUARED = 1000.0;
 
         enum class State
         {
@@ -127,17 +170,17 @@ namespace aviator_clock
         };
 
         // --- Core Dependencies ---
-        soc::api::ISoc &_soc;
+        soc::api::ISoc &_systemOnChip;
         wifi::api::IWifiManager &_wifiManager;
 
         // --- Hardware and Logic Components ---
-        std::unique_ptr<stepper::api::IStepperController> _accelWrapper;
+        std::unique_ptr<stepper::api::IStepperController> _stepperController;
         std::unique_ptr<soc::api::IDigitalInput> _hallSensor;
         std::unique_ptr<soc::api::IDigitalInput> _setupButtonPin;
         std::unique_ptr<IButton> _setupButton;
         std::unique_ptr<stepper::api::IHomingStrategy> _homingStrategy;
         std::unique_ptr<ClockHand> _secondHand;
-        std::unique_ptr<soc::api::ITask> _buttonTask;
+        std::unique_ptr<soc::api::ITask> _inputMonitoringTask;
 
         // --- Alarm Setup Components ---
         std::unique_ptr<soc::api::IDigitalInput> _modeButtonPin;
@@ -146,34 +189,35 @@ namespace aviator_clock
         std::unique_ptr<soc::api::IRotaryEncoder> _hourEncoder;
 
         // Switch Group Inputs
+        // These are used for selecting different alarm slots. The combination 
+        // of the 3 bits gives us a number from 0-7.
         std::unique_ptr<soc::api::IDigitalInput> _switchBit0;
         std::unique_ptr<soc::api::IDigitalInput> _switchBit1;
         std::unique_ptr<soc::api::IDigitalInput> _switchBit2;
         std::unique_ptr<SwitchGroup> _switchGroup;
 
         // Logic
-        std::unique_ptr<class AlarmRepository> _alarmRepo; // Forward decl was not used, header included
+        std::unique_ptr<class AlarmRepository> _alarmRepository;
         std::unique_ptr<class TimeEditor> _timeEditor;
 
         State _currentState{State::Initial};
         uint8_t _lastSelectedSlot{INVALID_SLOT};
 
         /**
-         * @brief The main loop for the button monitoring task.
-         * Runs forever, checking for a long press to trigger a restart.
+         * @brief The main loop for the input monitoring task (buttons & encoders).
+         * Runs forever, checking for input events.
          */
-        void buttonMonitoringTask();
+        void _executeInputMonitoringLoop();
 
         /**
-         * @brief Checks for setup mode activation during a short window at boot.
-         * @return true if setup mode should be activated, false otherwise.
+         * @brief Starts the normal clock operation by performing a homing sequence.
          */
-        bool _checkForSetupModeActivationAtBoot();
+        void _startNormalOperation(bool isResume = false);
 
         /**
-         * @brief Starts the normal clock operation.
+         * @brief Resumes the normal clock operation without homing (assumes valid position).
          */
-        void _startNormalOperation();
+        void _resumeNormalOperation();
 
         // --- Alarm Setup Helpers ---
         void _enterAlarmSetup();
@@ -181,14 +225,60 @@ namespace aviator_clock
         void _exitAlarmSetup();
 
         /**
+         * @brief Handles WiFi setup interactions (auto-reconnect on exit, setup button actions).
+         * @param wasInSetupMode Reference to state tracking variable for detecting setup mode exit.
+         */
+        void _handleWifiSetupInteractions(bool &wasInSetupMode);
+
+        // --- Initialization Helpers (Clean Code: Method Extraction) ---
+        /**
+         * @brief Initializes all Input/Output hardware (Buttons, Switches, Sensors).
+         * This encapsulates the low-level pin mapping and object creation.
+         */
+        void _initializeHardwareInputs();
+
+        /**
+         * @brief Initializes the stepper motor driver and the associated homing strategy.
+         */
+        void _initializeMotorSubsystem();
+
+        /**
+         * @brief Initializes the pure application logic components (Repositories, Time Editor).
+         */
+        void _initializeLogicSubsystems();
+
+        /**
+         * @brief Composes the final ClockHand objects by injecting the prepared motors and logic.
+         */
+        void _composeClockHands();
+
+        /**
          * @brief Enters the WiFi setup mode.
          */
         void _enterWifiSetupMode();
 
         /**
-         * @brief Attempts to connect to WiFi and sync time, then starts normal operation.
+         * @brief Waits for NTP time synchronization.
+         * @return true if time is valid, false on timeout.
          */
-        void _connectAndSync();
+        bool _syncTime();
+
+        // --- Startup Helpers ---
+
+        /**
+         * @brief Starts the task that monitors user inputs (buttons, encoders).
+         */
+        void _startInputMonitoringTask();
+
+        /**
+         * @brief Ensures WiFi credentials are actively present, blocking until they are.
+         */
+        void _ensureWifiCredentialsAvailable();
+
+        /**
+         * @brief Waits for the configuration/setup mode to complete if it is active.
+         */
+        void _waitForSetupModeCompletion();
     };
 
 } // namespace aviator_clock

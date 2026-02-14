@@ -48,6 +48,35 @@ namespace wifi
             }
         }
 
+        bool Esp32WifiManager::connect(unsigned long timeoutMs)
+        {
+            if (isConnected()) return true;
+
+            begin();
+
+            _soc.getLogger().i(TAG, "Waiting for WiFi connection...");
+            _connectionStartTime = _soc.getTimeProvider().millis();
+
+            while (!isConnected() && !_hasTimedOut(timeoutMs))
+            {
+                _soc.getSleeper().sleep(100);
+            }
+
+            if (isConnected())
+            {
+                _soc.getLogger().i(TAG, "WiFi Connected! IP: %s", WiFi.localIP().toString().c_str());
+                return true;
+            }
+
+            _soc.getLogger().w(TAG, "WiFi connection timed out.");
+            return false;
+        }
+
+        bool Esp32WifiManager::_hasTimedOut(unsigned long timeoutMs) const
+        {
+            return (_soc.getTimeProvider().millis() - _connectionStartTime) > timeoutMs;
+        }
+
         bool Esp32WifiManager::hasCredentials() const
         {
             Preferences p;
