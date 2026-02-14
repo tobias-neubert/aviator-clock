@@ -1,52 +1,58 @@
-# Projektbeschreibung: Aviator Clock
+# Project Description: Aviator Clock
 
-Dieses Dokument dient als zentraler Kontext für den Gemini-Assistenten, um die Ziele, die Architektur und die Vision des Projekts zu verstehen.
+This document serves as the central context for the Gemini assistant to understand the goals, architecture, and vision of the project.
 
-**Assistenten-Anweisung:** Lies diese Datei zu Beginn jeder Interaktion, um den vollständigen Projektkontext zu laden.
+**Assistant Instruction:** Read this file at the beginning of every interaction to load the full project context.
 
 ## 1. Vision
 
-Das Ziel ist der Bau einer physischen Uhr, die von klassischen analogen Fluginstrumenten inspiriert ist. Die Uhr wird über drei separate Zeiger für Stunden, Minuten und Sekunden verfügen. Jeder dieser Zeiger ist wie ein eigenes Instrument gestaltet und wird von einem dedizierten Schrittmotor angetrieben.
+The goal is to build a physical clock inspired by classic analog flight instruments. The clock will feature three separate hands for hours, minutes, and seconds. Each of these hands is designed like a separate instrument and is driven by a dedicated stepper motor.
 
-## 2. Architektur-Ziele
+## 2. Architecture Goals
 
-*   **Modularität:** Eine saubere, schichtenbasierte Architektur, die die Anwendungslogik von der Hardware entkoppelt.
-*   **Testbarkeit:** Die Anwendungslogik soll so weit wie möglich auf einem Host-PC (z.B. mittels GoogleTest) testbar sein, ohne dass die physische Hardware (ESP32) benötigt wird. Dies wird durch eine Hardware-Abstraktionsschicht erreicht.
-*   **Echtzeitfähigkeit:** Das System soll auf einem Echtzeitbetriebssystem (RTOS, konkret FreeRTOS auf dem ESP32) laufen, um die präzise und nebenläufige Steuerung der drei Motoren sowie anderer Dienste (z.B. NTP-Zeitsynchronisation) zu gewährleisten.
+*   **Modularity:** A clean, layered architecture that decouples application logic from hardware.
+*   **Testability:** Application logic should be testable on a host PC (e.g., using GoogleTest) as much as possible without requiring physical hardware (ESP32). This is achieved through a hardware abstraction layer.
+*   **Real-time Capabilities:** The system should run on a real-time operating system (RTOS, specifically FreeRTOS on the ESP32) to ensure precise and concurrent control of the three motors as well as other services (e.g., NTP time synchronization).
 
-## 3. Software-Architektur (Zielzustand)
+## 3. Software Architecture (Target State)
 
-Die Software-Architektur folgt dem "Composition Root"-Pattern, um eine saubere Trennung der Verantwortlichkeiten zu gewährleisten und die Testbarkeit zu maximieren.
+The software architecture follows the "Composition Root" pattern to ensure a clean separation of concerns and maximize testability.
 
-*   **`main.cpp` (Einstiegspunkt / "Main"):**
-    *   Die `main.cpp` dient ausschließlich als Einstiegspunkt der Anwendung.
-    *   Ihre einzige Verantwortung ist es, die globale `soc`-Abstraktionsschicht (z.B. `ESP32Soc`) und die Haupt-Anwendungsklasse `AviatorClock` zu instanziieren und deren Lebenszyklus zu verwalten (`setup()` und `start()`).
-    *   Sie enthält keinerlei Anwendungs- oder Verdrahtungslogik.
+*   **`main.cpp` (Entry Point / "Main"):**
+    *   The `main.cpp` serves exclusively as the application's entry point.
+    *   Its only responsibility is to instantiate the global `soc` abstraction layer (e.g., `ESP32Soc`) and the main application class `AviatorClock` and manage their lifecycle (`setup()` and `start()`).
+    *   It contains no application or wiring logic whatsoever.
 
-*   **`AviatorClock` Klasse (Die Anwendung / "Composition Root"):**
-    *   Diese Klasse ist das Herz der Anwendung und befindet sich in der `aviator-clock`-Bibliothek.
-    *   Sie agiert als "Composition Root": Sie ist dafür verantwortlich, alle für den Betrieb notwendigen Objekte und Komponenten zu erstellen, zu konfigurieren und miteinander zu verbinden.
-    *   Dazu gehören Motoren, Sensoren, Buttons, Homing-Strategien und die einzelnen Uhrzeiger (`ClockHand`-Instanzen).
-    *   Alle statischen Konfigurationen (Pin-Definitionen, Geschwindigkeiten, etc.) sind innerhalb dieser Klasse gekapselt.
-    *   Sie orchestriert die übergeordnete Logik, z.B. "Prüfe beim Start, ob der Setup-Button gedrückt wird. Wenn ja, starte den WiFi-Konfigurationsmodus. Wenn nein, starte den normalen Uhrbetrieb."
+*   **`AviatorClock` Class (The Application / "Composition Root"):**
+    *   This class is the heart of the application and resides in the `aviator-clock` library.
+    *   It acts as the "Composition Root": It is responsible for creating, configuring, and connecting all objects and components necessary for operation.
+    *   This includes motors, sensors, buttons, homing strategies, and the individual clock hands (`ClockHand` instances).
+    *   All static configurations (pin definitions, speeds, etc.) are encapsulated within this class.
+    *   It orchestrates high-level logic, e.g., "Check at startup if the setup button is pressed. If yes, start WiFi configuration mode. If no, start normal clock operation."
 
-*   **Bibliotheken (in `lib/`):**
-    *   Die einzelnen Bibliotheken (`soc-api`, `stepper-api`, `buttons`, etc.) sind wiederverwendbare, voneinander unabhängige Module mit klar definierten Schnittstellen (APIs).
-    *   Die `AviatorClock`-Klasse nutzt diese Bibliotheken, aber die Bibliotheken selbst haben keine Kenntnis von der `AviatorClock`-Anwendung.
+*   **Libraries (in `lib/`):**
+    *   The individual libraries (`soc-api`, `stepper-api`, `buttons`, etc.) are reusable, independent modules with clearly defined interfaces (APIs).
+    *   The `AviatorClock` class uses these libraries, but the libraries themselves have no knowledge of the `AviatorClock` application.
 
-## 4. Kernkomponenten (Bibliotheken in `lib/`)
+## 4. Core Components (Libraries in `lib/`)
 
-*   `soc-api`: Definiert die Schnittstellen zur Hardware-Abstraktion (System-on-a-Chip API). Hierzu gehören Dienste wie Logging, Zeitgeber, GPIOs und zukünftig auch RTOS-Primitive (Tasks, Queues).
-*   `soc-esp32`: Die konkrete Implementierung der `soc-api` für die ESP32-Plattform unter Verwendung des Arduino/ESP-IDF Frameworks.
-*   `soc-mock`: Eine Mock-Implementierung der `soc-api` für die Host-Testumgebung. Sie simuliert das Verhalten der Hardware, um Tests ohne realen Chip zu ermöglichen.
-*   `stepper-api`: Definiert die Schnittstellen für die Ansteuerung von Schrittmotoren (`IStepperMotor`, `IHomingStrategy`, etc.).
-*   `accel-stepper-adapter`: Eine Adapter-Bibliothek, die die `AccelStepper`-Drittanbieter-Bibliothek kapselt und sie mit der `stepper-api` kompatibel macht.
-*   `aviator-clock`: Die eigentliche Anwendungslogik. Sie enthält die `ClockHand`-Klassen und die Logik, um die Zeit auf den Motorpositionen abzubilden.
+*   `soc-api`: Defines the interfaces for hardware abstraction (System-on-a-Chip API). This includes services like logging, timers, GPIOs, and in the future, RTOS primitives (tasks, queues).
+*   `soc-esp32`: The concrete implementation of the `soc-api` for the ESP32 platform using the Arduino/ESP-IDF Framework.
+*   `soc-mock`: A mock implementation of the `soc-api` for the host test environment. It simulates hardware behavior to enable tests without a real chip.
+*   `stepper-api`: Defines interfaces for controlling stepper motors (`IStepperMotor`, `IHomingStrategy`, etc.).
+*   `accel-stepper-adapter`: An adapter library that encapsulates the `AccelStepper` third-party library and makes it compatible with the `stepper-api`.
+*   `aviator-clock`: The actual application logic. It contains the `ClockHand` classes and the logic to map time to motor positions.
 
-## 4. Aktueller Status
+## 4. Current Status
 
-Das Projekt befindet sich in der Migration von einer Single-Loop-Architektur zu einer RTOS-basierten Architektur. Der Migrationsprozess wird in `MIGRATIONSPLAN.md` dokumentiert.
+The project is currently migrating from a single-loop architecture to an RTOS-based architecture. The migration process is documented in `MIGRATIONSPLAN.md`.
 
-## 5. Technische Dokumentation
+## 5. Technical Documentation
 
-Detaillierte technische Spezifikationen, Konzepte und Diagramme (wie z.B. Pinouts oder Homing-Strategien) sind im Verzeichnis [`doc/spcifications`](./doc/specifications) abgelegt.
+Detailed technical specifications, concepts, and diagrams (such as pinouts or homing strategies) are stored in the [`doc/specifications`](./doc/specifications) directory.
+
+## 6. Code Quality Guidelines
+
+1.  **No Abbreviations:** Variable, function, and class names should be written out fully to maximize readability (e.g., `calculateTotalAmount` instead of `calcTotAmt`).
+2.  **Clean Code / Expressive Code:** Code should be written to read like prose. Identifier names should clearly express their intent and function, making the code largely self-explanatory.
+3.  **Comments Explain the HOW and WHY:** Comments should not describe *what* the code does (the code itself should do that), but *why* a certain decision was made or *how* a complex algorithm works in detail.
