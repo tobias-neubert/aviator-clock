@@ -16,12 +16,12 @@ public:
     /**
      * @brief Construct a new Long Press Button object.
      *
-     * @param soc A reference to the SoC object, used to get time.
+     * @param systemOnChip A reference to the SoC object, used to get time.
      * @param pin A reference to the abstract digital input pin.
      * @param longPressTimeMs The duration in milliseconds to qualify as a long press.
      * @param debounceTimeMs The debounce delay in milliseconds.
      */
-    LongPressButton(soc::api::ISoc& soc, soc::api::IDigitalInput& pin, unsigned long longPressTimeMs = 3000, unsigned long debounceTimeMs = 50);
+    LongPressButton(soc::api::ISoc& systemOnChip, soc::api::IDigitalInput& pin, unsigned long longPressTimeMs = 3000, unsigned long debounceTimeMs = 50);
 
     /**
      * @brief Updates the button state machine. Must be called frequently.
@@ -50,7 +50,7 @@ private:
         RELEASED
     };
 
-    soc::api::ISoc& _soc;
+    soc::api::ISoc& _systemOnChip;
     soc::api::IDigitalInput& _pin;
     const unsigned long _longPressTimeMs;
     const unsigned long _debounceTimeMs;

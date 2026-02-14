@@ -25,8 +25,8 @@ static const char *TAG = "AviatorClock";
 
 namespace aviator_clock
 {
-    AviatorClock::AviatorClock(soc::api::ISoc &soc, wifi::api::IWifiManager &wifiManager) : 
-        _systemOnChip(soc), _wifiManager(wifiManager)
+    AviatorClock::AviatorClock(soc::api::ISoc &systemOnChip, wifi::api::IWifiManager &wifiManager) : 
+        _systemOnChip(systemOnChip), _wifiManager(wifiManager)
     {
         _systemOnChip.getLogger().i(TAG, "AviatorClock instance created.");
     }
@@ -371,13 +371,12 @@ namespace aviator_clock
             PIN_MOTOR_ENABLE);
 
         // Create the main application component (ClockHand)
-        _secondHand = std::make_unique<aviator_clock::ClockHand>(
-            aviator_clock::ClockHand::HandType::SECOND,
-            _systemOnChip,
-            std::move(motor),
-            DIAL_TOTAL_ACTIVE_ANGLE,
-            SHARP_TICK_SPEED_DEGREES_PER_SECOND,
-            SHARP_TICK_ACCELERATION_DEGREES_PER_SECOND_SQUARED);
+        _secondHand = aviator_clock::ClockHand::Builder(_systemOnChip, std::move(motor))
+                          .withHandType(aviator_clock::ClockHand::HandType::SECOND)
+                          .withTotalAngleForDial(DIAL_TOTAL_ACTIVE_ANGLE)
+                          .withMotorSpeedDegreesPerSecond(SHARP_TICK_SPEED_DEGREES_PER_SECOND)
+                          .withMotorAccelerationDegreesPerSecondSquared(SHARP_TICK_ACCELERATION_DEGREES_PER_SECOND_SQUARED)
+                          .build();
 
         // Setup the ClockHand itself (starts its task if configured)
         if (_secondHand)

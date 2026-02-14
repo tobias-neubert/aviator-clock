@@ -45,6 +45,7 @@ namespace stepper
             void update() override;
             bool isBusy() const override;
             void stop() override;
+            void stopBlocking() override;
 
         private:
             soc::api::Logger& _logger;

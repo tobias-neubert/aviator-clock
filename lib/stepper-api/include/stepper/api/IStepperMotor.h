@@ -123,4 +123,11 @@ public:
      * `update()` will handle the deceleration process.
      */
     virtual void stop() = 0;
+
+    /**
+     * @brief Stops the motor and blocks until the motor has come to a full standstill.
+     * Starts the deceleration and pumps `update()` until `isBusy()` is false.
+     * WARNING: This method actively blocks the execution thread.
+     */
+    virtual void stopBlocking() = 0;
 };

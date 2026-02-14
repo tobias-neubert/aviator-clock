@@ -20,10 +20,34 @@ namespace aviator_clock
       SECOND
     };
 
-    ClockHand(HandType type, soc::api::ISoc &soc,
+    class Builder
+    {
+    public:
+      Builder(soc::api::ISoc &systemOnChip, std::unique_ptr<IStepperMotor> &&stepperMotor);
+
+      Builder &withHandType(HandType type);
+      Builder &withTotalAngleForDial(double angle);
+      Builder &withMotorSpeedDegreesPerSecond(double speed);
+      Builder &withMotorAccelerationDegreesPerSecondSquared(double accel);
+
+      std::unique_ptr<ClockHand> build();
+
+    private:
+      soc::api::ISoc &_systemOnChip;
+      std::unique_ptr<IStepperMotor> _stepperMotor;
+      HandType _type = HandType::SECOND;
+      double _totalAngleForDial = 360.0;
+      double _motorSpeedDegreesPerSecond = 45.0;
+      double _motorAccelerationDegreesPerSecondSquared = 45.0;
+    };
+
+    /**
+     * @deprecated Use Builder instead.
+     */
+    ClockHand(HandType type, soc::api::ISoc &systemOnChip,
               std::unique_ptr<IStepperMotor> &&stepperMotor,
               double totalAngleForDial,
-              double motorSpeedDps, double motorAccelerationDps2);
+              double motorSpeedDegreesPerSecond, double motorAccelerationDegreesPerSecondSquared);
 
     ~ClockHand();
 
@@ -60,7 +84,7 @@ namespace aviator_clock
     void runTickingLoop();
 
     HandType _type;
-    soc::api::ISoc &_soc;
+    soc::api::ISoc &_systemOnChip;
     soc::api::Logger &_logger;
     
     soc::api::ITime &_timeProvider;
@@ -71,9 +95,11 @@ namespace aviator_clock
     double _totalAngleForDial;
     double _degreesPerUnit;
     int _lastDisplayValue;
-    double _motorSpeedDps;
-    double _motorAccelerationDps2;
+    double _motorSpeedDegreesPerSecond;
+    double _motorAccelerationDegreesPerSecondSquared;
     // Flag to indicate if the next task start should skip homing (set via resume())
     bool _skipHomingOnNextStart{false};
+
+    static constexpr uint32_t TASK_STACK_SIZE_BYTES = 4096 * 2;
   };
 } // namespace aviator_clock

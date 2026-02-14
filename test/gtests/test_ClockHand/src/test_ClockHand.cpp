@@ -23,10 +23,12 @@ protected:
     motorMock = motorMockUnique.get();
 
     // Create the ClockHand, moving ownership of the mock motor into it
-    clockHand = std::make_unique<ClockHand>(
-        ClockHand::HandType::SECOND, *mockSoc, std::move(motorMockUnique),
-        360.0, // Simplified total angle for easier math
-        2400.0, 60000.0);
+    clockHand = ClockHand::Builder(*mockSoc, std::move(motorMockUnique))
+                    .withHandType(ClockHand::HandType::SECOND)
+                    .withTotalAngleForDial(360.0)
+                    .withMotorSpeedDegreesPerSecond(2400.0)
+                    .withMotorAccelerationDegreesPerSecondSquared(60000.0)
+                    .build();
   }
 
   void TearDown() override

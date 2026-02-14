@@ -326,5 +326,18 @@ namespace stepper
                 _currentState = StepperMotorState::IDLE;
             }
         }
+
+        void AccelStepperMotor::stopBlocking()
+        {
+            stop();
+            int safety = 5000;
+            while (isBusy() && safety-- > 0)
+            {
+                update();
+                // Note: No sleep(0) here as we don't depend on ISoc.
+                // In a FreeRTOS environment without sleep(0), this busy loop is short lived
+                // due to the safety counter and usually fast deceleration.
+            }
+        }
     }
 }

@@ -6,19 +6,63 @@ static const char* TAG = "ClockHand";
 namespace aviator_clock
 {
 
-  ClockHand::ClockHand(HandType type, soc::api::ISoc &soc,
+  // --- Builder Implementation ---
+
+  ClockHand::Builder::Builder(soc::api::ISoc &systemOnChip, std::unique_ptr<IStepperMotor> &&stepperMotor)
+      : _systemOnChip(systemOnChip),
+        _stepperMotor(std::move(stepperMotor))
+  {
+  }
+
+  ClockHand::Builder &ClockHand::Builder::withHandType(HandType type)
+  {
+    _type = type;
+    return *this;
+  }
+
+  ClockHand::Builder &ClockHand::Builder::withTotalAngleForDial(double angle)
+  {
+    _totalAngleForDial = angle;
+    return *this;
+  }
+
+  ClockHand::Builder &ClockHand::Builder::withMotorSpeedDegreesPerSecond(double speed)
+  {
+    _motorSpeedDegreesPerSecond = speed;
+    return *this;
+  }
+
+  ClockHand::Builder &ClockHand::Builder::withMotorAccelerationDegreesPerSecondSquared(double accel)
+  {
+    _motorAccelerationDegreesPerSecondSquared = accel;
+    return *this;
+  }
+
+  std::unique_ptr<ClockHand> ClockHand::Builder::build()
+  {
+      return std::make_unique<ClockHand>(
+          _type,
+          _systemOnChip,
+          std::move(_stepperMotor),
+          _totalAngleForDial,
+          _motorSpeedDegreesPerSecond,
+          _motorAccelerationDegreesPerSecondSquared
+      );
+  }
+
+  ClockHand::ClockHand(HandType type, soc::api::ISoc &systemOnChip,
                        std::unique_ptr<IStepperMotor> &&stepperMotor,
                        double totalAngleForDial,
-                       double motorSpeedDps, double motorAccelerationDps2)
+                       double motorSpeedDegreesPerSecond, double motorAccelerationDegreesPerSecondSquared)
       : _type(type),
-        _soc(soc),
-        _logger(soc.getLogger()),
-        _timeProvider(_soc.getTimeProvider()),
+        _systemOnChip(systemOnChip),
+        _logger(systemOnChip.getLogger()),
+        _timeProvider(_systemOnChip.getTimeProvider()),
         _stepperMotor(std::move(stepperMotor)),
         _shouldStop(false),
         _totalAngleForDial(totalAngleForDial),
-        _motorSpeedDps(motorSpeedDps),
-        _motorAccelerationDps2(motorAccelerationDps2),
+        _motorSpeedDegreesPerSecond(motorSpeedDegreesPerSecond),
+        _motorAccelerationDegreesPerSecondSquared(motorAccelerationDegreesPerSecondSquared),
         _lastDisplayValue(-1)
   {
     if (_stepperMotor == nullptr)
@@ -42,8 +86,8 @@ namespace aviator_clock
   {
     if (!_stepperMotor)
       return;
-    _stepperMotor->setSpeed(_motorSpeedDps);
-    _stepperMotor->setAcceleration(_motorAccelerationDps2);
+    _stepperMotor->setSpeed(_motorSpeedDegreesPerSecond);
+    _stepperMotor->setAcceleration(_motorAccelerationDegreesPerSecondSquared);
     _logger.i(TAG, "ClockHand::setup() - Motor configured for %s hand.",
                  _type == HandType::SECOND ? "SECOND" : "OTHER");
   }
@@ -74,11 +118,10 @@ namespace aviator_clock
       _logger.w(TAG, "ClockHand::start() called but task is already running.");
       return;
     }
-    auto task_logic = [this]()
-    { this->taskLoop(); };
+    auto task_logic = [this](){ this->taskLoop(); };
     std::string task_name = "hand_task";
     _logger.i(TAG, "ClockHand::start() - Creating task '%s'.", task_name.c_str());
-    _task = _soc.createTask(task_logic, task_name, 4096 * 2);
+    _task = _systemOnChip.createTask(task_logic, task_name, TASK_STACK_SIZE_BYTES);
   }
 
   void ClockHand::resume()
@@ -99,17 +142,7 @@ namespace aviator_clock
       if (_stepperMotor)
       {
           _logger.i(TAG, "ClockHand::stop() - Ensuring motor is stopped and IDLE.");
-          _stepperMotor->stop();
-          
-          // Pump update() until the motor internal state is IDLE (completed deceleration)
-          // limit iterations to prevent infinite loops.
-          // Using sleep(0) allows yielding but returning immediately to process updates fast.
-          int safety = 5000; 
-          while (_stepperMotor->isBusy() && safety-- > 0)
-          {
-              _stepperMotor->update();
-              _soc.getSleeper().sleep(0);
-          }
+          _stepperMotor->stopBlocking();
       }
 
       _shouldStop = false; // Reset for next start
@@ -128,7 +161,7 @@ namespace aviator_clock
       while (_stepperMotor->isBusy())
       {
           _stepperMotor->update();
-          _soc.getSleeper().sleep(0); 
+          _systemOnChip.getSleeper().sleep(0); 
       }
   }
 
@@ -164,7 +197,7 @@ namespace aviator_clock
 
   bool ClockHand::runHomingSequence()
   {
-    auto &sleeper = _soc.getSleeper();
+    auto &sleeper = _systemOnChip.getSleeper();
     _logger.i(TAG, "Homing: Starting homing sequence.");
     _logger.d(TAG, "Homing: Enabling motor.");
     _stepperMotor->enable();
@@ -199,7 +232,7 @@ namespace aviator_clock
 
   bool ClockHand::setInitialPosition()
   {
-    auto &sleeper = _soc.getSleeper();
+    auto &sleeper = _systemOnChip.getSleeper();
     _logger.i(TAG, "Initial Position: Setting to current time.");
     soc::api::ITime::TimeComponents currentTime;
     if (!_timeProvider.asTimeComponents(currentTime))
@@ -244,7 +277,7 @@ namespace aviator_clock
 
   void ClockHand::runTickingLoop()
   {
-    auto &sleeper = _soc.getSleeper();
+    auto &sleeper = _systemOnChip.getSleeper();
     _logger.i(TAG, "Ticking Loop: Entering normal operation loop.");
     while (!_shouldStop.load())
     {
@@ -275,39 +308,39 @@ namespace aviator_clock
             int maxUnits = (_type == HandType::HOUR) ? 12 : 60;
             bool isWrapAround = (_lastDisplayValue == maxUnits - 1) && (targetDisplayValue == 0);
 
-            // SONDERBEHANDLUNG FÜR DEN ÜBERGANG VON 59 auf 0 (bzw. 11 auf 0)
-            // WARUM IST DAS NÖTIG?
-            // Die Stepper-Bibliothek (AccelStepper) denkt nicht in Kreisen, sondern auf einer
-            // unendlich langen, linearen Achse von "Schritten" (wie ein Maßband). Wenn der
-            // Zeiger bei Sekunde 59 steht, ist sein interner Zähler auf einem hohen Wert.
-            // Der Befehl, zu Sekunde 0 zu fahren, bedeutet für die Bibliothek "gehe zu Schritt 0".
-            // Der kürzeste Weg dahin ist rückwärts, was zur unerwünschten Bewegung führt.
+            // SPECIAL HANDLING FOR TRANSITION FROM 59 to 0 (or 11 to 0)
+            // WHY IS THIS NECESSARY?
+            // The Stepper library (AccelStepper) does not think in circles, but on an
+            // infinitely long, linear axis of "steps" (like a tape measure). When the
+            // hand is at second 59, its internal counter is at a high value.
+            // The command to go to second 0 means for the library "go to step 0".
+            // The shortest way there is backwards, which leads to unwanted movement.
             if (isWrapAround)
             {
               _logger.i(TAG, "Ticking Loop: Wrap-around detected. Performing fast clockwise jump.");
               
-              // SCHRITT 1: Sprung über die Lücke im Uhrzeigersinn erzwingen.
-              // Wir geben als Ziel 360 Grad an. Das ist für den Motor die gleiche physische
-              // Position wie 0 Grad, zwingt ihn aber, den vollen Weg im Uhrzeigersinn zu nehmen,
-              // um von seiner aktuellen Position (~325 Grad) dorthin zu gelangen.
+              // STEP 1: Force jump across the gap in clockwise direction.
+              // We specify 360 degrees as the target. This is the same physical position
+              // for the motor as 0 degrees, but forces it to take the full path clockwise
+              // to get there from its current position (~325 degrees).
               const double JUMP_SPEED_MULTIPLIER = 2.5;
-              _stepperMotor->setSpeed(_motorSpeedDps * JUMP_SPEED_MULTIPLIER);
+              _stepperMotor->setSpeed(_motorSpeedDegreesPerSecond * JUMP_SPEED_MULTIPLIER);
               _stepperMotor->moveToAbsolute(360.0);
 
-              // SCHRITT 2: Warten, bis die Bewegung abgeschlossen ist.
+              // STEP 2: Wait until the movement is completed.
               while (!_shouldStop.load() && _stepperMotor->isBusy())
               {
                 _stepperMotor->update();
                 sleeper.sleep(1);
               }
 
-              // Geschwindigkeit wieder auf den Normalwert zurücksetzen.
-              _stepperMotor->setSpeed(_motorSpeedDps);
+              // Reset speed to normal value.
+              _stepperMotor->setSpeed(_motorSpeedDegreesPerSecond);
 
-              // SCHRITT 3: Interne Position des Motors zurücksetzen.
-              // Nachdem der Sprung vollendet ist, "denkt" der Motor, er sei bei 360 Grad.
-              // Wir müssen ihm sagen: "Diese Position ist ab sofort wieder der Anfang (0 Grad)."
-              // Ohne diesen Reset wäre die nächste Bewegung (zu Sekunde 1) falsch.
+              // STEP 3: Reset internal position of the motor.
+              // After the jump is completed, the motor "thinks" it is at 360 degrees.
+              // We have to tell it: "This position is now the beginning (0 degrees)."
+              // Without this reset, the next movement (to second 1) would be wrong.
               if (!_shouldStop.load()) {
                 _logger.i(TAG, "Ticking Loop: Resetting motor position to 0 after jump.");
                 _stepperMotor->setCurrentPositionDegrees(0.0);
@@ -315,7 +348,7 @@ namespace aviator_clock
             }
             else
             {
-              // Für alle "normalen" Bewegungen (z.B. 25->26) die Standard-Logik verwenden.
+              // Use standard logic for all "normal" movements (e.g. 25->26).
               moveToDisplayValue(targetDisplayValue);
             }
             _lastDisplayValue = targetDisplayValue;

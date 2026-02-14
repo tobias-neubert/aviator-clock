@@ -27,4 +27,5 @@ public:
     MOCK_METHOD(void, update, (), (override));
     MOCK_METHOD(bool, isBusy, (), (const, override));
     MOCK_METHOD(void, stop, (), (override));
+    MOCK_METHOD(void, stopBlocking, (), (override));
 };

@@ -72,10 +72,10 @@ namespace aviator_clock
 
         /**
          * @brief Construct a new Aviator Clock object.
-         * @param soc A reference to the underlying System-on-a-Chip services.
+         * @param systemOnChip A reference to the underlying System-on-a-Chip services.
          * @param wifiManager A reference to the WiFi Manager.
          */
-        AviatorClock(soc::api::ISoc &soc, wifi::api::IWifiManager &wifiManager);
+        AviatorClock(soc::api::ISoc &systemOnChip, wifi::api::IWifiManager &wifiManager);
 
         /**
          * @brief Destructor.

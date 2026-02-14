@@ -1,7 +1,7 @@
 #include "buttons/impl/LongPressButton.h"
 
-LongPressButton::LongPressButton(soc::api::ISoc& soc, soc::api::IDigitalInput& pin, unsigned long longPressTimeMs, unsigned long debounceTimeMs) :
-    _soc(soc),
+LongPressButton::LongPressButton(soc::api::ISoc& systemOnChip, soc::api::IDigitalInput& pin, unsigned long longPressTimeMs, unsigned long debounceTimeMs) :
+    _systemOnChip(systemOnChip),
     _pin(pin),
     _longPressTimeMs(longPressTimeMs),
     _debounceTimeMs(debounceTimeMs) {}
@@ -12,13 +12,13 @@ void LongPressButton::update() {
     switch (_state) {
         case State::IDLE:
             if (isPressed) {
-                _pressStartTime = _soc.getTimeProvider().millis();
+                _pressStartTime = _systemOnChip.getTimeProvider().millis();
                 _state = State::DEBOUNCING;
             }
             break;
 
         case State::DEBOUNCING:
-            if (_soc.getTimeProvider().millis() - _pressStartTime > _debounceTimeMs) {
+            if (_systemOnChip.getTimeProvider().millis() - _pressStartTime > _debounceTimeMs) {
                 if (isPressed) {
                     _state = State::PRESSED;
                 } else {
@@ -31,7 +31,7 @@ void LongPressButton::update() {
             if (!isPressed) {
                 _state = State::RELEASED;
                 _shortPressEvent = true; // Register a short press event on release
-            } else if (_soc.getTimeProvider().millis() - _pressStartTime > _longPressTimeMs) {
+            } else if (_systemOnChip.getTimeProvider().millis() - _pressStartTime > _longPressTimeMs) {
                 _state = State::LONG_PRESS_DETECTED;
                 _longPressEvent = true; // Register a long press event
             }
