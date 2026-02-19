@@ -3,7 +3,6 @@
 Dieses Dokument umreißt die wichtigsten Sicherheitsmaßnahmen und -prinzipien, die bei der Entwicklung der Aviator Clock berücksichtigt werden müssen, um das Gerät vor potenziellen Angriffen zu schützen, sobald es in einem WLAN-Netzwerk betrieben wird.
 
 ## 1. Sichere Over-the-Air (OTA) Updates
-
 Der Prozess des Firmware-Updates ist ein kritisches Ziel für Angreifer. Hier müssen strenge Maßnahmen ergriffen werden:
 
 *   **Firmware-Signierung:** Alle Firmware-Updates müssen kryptographisch signiert sein. Der Bootloader des ESP32 muss diese Signatur vor der Installation eines Updates validieren. Nur Firmware, die mit dem bekannten privaten Schlüssel signiert wurde, darf installiert werden. Dies verhindert, dass ein Angreifer manipulierte oder bösartige Firmware auf das Gerät flasht.
