@@ -81,7 +81,7 @@ aviator-clock/
 │   │   └── SystemGateway.h          # System operations (restart, factory reset, status)
 │   │
 │   ├── platform/                    # Namespace: aviator::platform (ESP32 & FreeRTOS)
-│   │   ├── bsp/
+│   │   ├── board_support_package/
 │   │   │   └── PinConfig.h          # Hardware pin assignments and electrical parameters
 │   │   ├── motor/
 │   │   │   ├── StepperSubsystem.h   # Central FreeRTOS motor execution task

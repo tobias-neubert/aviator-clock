@@ -8,3 +8,5 @@
 
 web-client/node_modules
 web-client/dist
+
+compile_commands.json

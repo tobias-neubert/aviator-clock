@@ -1,0 +1,13 @@
+CompileFlags:
+  CompilationDatabase: .
+  Add:
+    - -Isrc
+    - -Iinclude
+    - -Ilib/soc-api/include
+    - -Ilib/soc-mock/include
+    - -Ilib/buttons/include
+    - -Ilib/stepper-api/include
+    - -Ilib/accel-stepper-adapter/include
+    - -Ilib/wifi-manager/include
+    - -Itest/mocks
+    - -std=gnu++17

@@ -1,6 +1,6 @@
 # 03 Implement Centralized Stepper Motor Execution Subsystem
 
-Status: ready-for-agent
+Status: closed
 Blocked by: 02
 
 ## Context
@@ -23,3 +23,10 @@ Per ADR 0003, running individual FreeRTOS tasks per hand with `sleep(1)` bottlen
 - Verify compilation with `pio run -e nodemcu-32s`.
 
 ## Comments
+- Implemented `src/platform/motor/` in namespace `aviator::platform::motor` with abstract `StepperController` and `HomingStrategy` (no 'I' prefix).
+- Migrated and adapted `AccelStepperWrapper` (wrapping AccelStepper for ESP32) and `PreciseOneWayHomingStrategy` (handling Hall-sensor homing with backoff, seeking, stop, and deceleration to datum).
+- Implemented `StepperHandActuator` implementing domain outbound port `aviator::domain::HandActuator` with thread-safe, non-blocking asynchronous command dispatch and 360° jump speed multiplier.
+- Created `src/platform/board_support_package/PinConfig.h` defining complete hardware pinouts for the 3 dial motors, Hall sensors, enable pin, and setup button.
+- Implemented `StepperSubsystem` providing dial accessors (`getHourHand()`, `getMinuteHand()`, `getSecondHand()`), central `motor_runner_task` lifecycle, and a non-blocking `stepIteration()` loop.
+- Added comprehensive native GoogleTests in `test/gtests/test_motor/` for `PreciseOneWayHomingStrategy`, `StepperHandActuator`, and `StepperSubsystem`.
+- Verified 100% test pass (75/75 tests passing) with `pio test -e google_tests` and clean firmware build with `pio run -e nodemcu-32s`.
