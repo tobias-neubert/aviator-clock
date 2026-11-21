@@ -1,6 +1,6 @@
 # 04 Implement Platform Storage (NVS) and Time (SNTP) Adapters
 
-Status: ready-for-agent
+Status: closed
 Blocked by: 02
 
 ## Context
@@ -21,3 +21,8 @@ Currently, persistent storage and time are split across `soc-api` (`IPersistentS
 - Verify compilation with `pio run -e nodemcu-32s`.
 
 ## Comments
+- Implemented `NvsAlarmStorage` in `src/platform/storage/` implementing domain port `aviator::domain::AlarmStorage` directly using ESP32 `Preferences` (NVS) for persisting hour, minute, enabled, and sound track ID.
+- Implemented `NtpTimeSource` in `src/platform/time/` implementing domain port `aviator::domain::TimeSource` encapsulating ESP-IDF SNTP daemon initialization, POSIX timezone handling (`setenv`/`tzset`), and wall-clock component conversion (`localtime_r`).
+- Added native `Preferences` mock in `test/mocks/Preferences.h` and test doubles `FakeAlarmStorage.h` and `FakeTimeSource.h` in `test/mocks/`.
+- Created comprehensive GoogleTest suites in `test/gtests/test_storage/` (9 unit tests) and `test/gtests/test_time/` (11 unit tests).
+- Verified 100% test pass (95/95 test cases) with `pio test -e google_tests` and clean firmware build with `pio run -e nodemcu-32s`.
