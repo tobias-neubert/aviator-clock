@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include "domain/ClockConfigurationApi.h"
@@ -31,6 +32,8 @@ using WebPortalConfig = WebPortalConfiguration;
  * Provides HTTP REST endpoints for Wi-Fi scanning/provisioning, alarm configuration,
  * audio track previewing, and system lifecycle management. Translates inbound REST operations
  * directly into domain port calls on ClockConfigurationApi and SystemGateway.
+ * 
+ * Adheres to zero-runtime-dynamic-allocation and persistent task lifecycle engineering standards.
  */
 class WebPortalServer {
 public:
@@ -42,16 +45,27 @@ public:
     ~WebPortalServer();
 
     /**
-     * @brief Mounts LittleFS, starts Wi-Fi SoftAP, registers routes, and begins listening.
+     * @brief Performs one-time setup: mounts LittleFS and registers static routes and API endpoints.
+     */
+    void initialize();
+
+    /**
+     * @brief Starts Wi-Fi SoftAP and begins listening for HTTP requests.
      */
     void start();
 
     /**
-     * @brief Stops listening and terminates SoftAP mode.
+     * @brief Stops listening and terminates SoftAP mode without tearing down handlers.
      */
     void stop();
 
     bool isRunning() const;
+
+    /**
+     * @brief Evaluates non-allocating deferred lifecycle triggers (reboot, finish).
+     * Invoked periodically by the system background execution loop.
+     */
+    void update();
 
 private:
 #if defined(ARDUINO) || defined(ESP32)
@@ -61,10 +75,18 @@ private:
     domain::ClockConfigurationApi& _clockConfigurationApi;
     domain::SystemGateway& _systemGateway;
     WebPortalConfiguration _configuration;
+    bool _isInitialized{false};
     bool _isRunning{false};
 
+    // Non-allocating deferred triggers for restart and stop
+    std::atomic<bool> _pendingReboot{false};
+    uint32_t _rebootTargetTimeMs{0};
+
+    std::atomic<bool> _pendingStop{false};
+    uint32_t _stopTargetTimeMs{0};
+
 #if defined(ARDUINO) || defined(ESP32)
-    std::unique_ptr<AsyncWebServer> _server;
+    AsyncWebServer _server;
 #endif
 };
 

@@ -3,12 +3,13 @@
 #if defined(ARDUINO) || defined(ESP32)
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <map>
+#include <array>
 
 namespace {
 constexpr const char* PREFERENCES_NAMESPACE_WIFI = "wifi-config";
 constexpr const char* PREFERENCES_KEY_SSID = "ssid";
 constexpr const char* PREFERENCES_KEY_PASSWORD = "pass";
+constexpr size_t MAX_SCANNED_NETWORKS = 16;
 } // namespace
 
 #endif
@@ -21,11 +22,33 @@ WebPortalServer::WebPortalServer(
     const WebPortalConfiguration& configuration)
     : _clockConfigurationApi(clockConfigurationApi),
       _systemGateway(systemGateway),
-      _configuration(configuration) {
+      _configuration(configuration)
+#if defined(ARDUINO) || defined(ESP32)
+      , _server(configuration.port)
+#endif
+{
 }
 
 WebPortalServer::~WebPortalServer() {
     stop();
+}
+
+void WebPortalServer::initialize() {
+    if (_isInitialized) {
+        return;
+    }
+
+#if defined(ARDUINO) || defined(ESP32)
+    // Mount LittleFS filesystem once for serving frontend assets
+    if (!LittleFS.begin(false)) {
+        LittleFS.begin(true);
+    }
+
+    // Register all static routes and API endpoints once during initialization
+    setupRoutes();
+#endif
+
+    _isInitialized = true;
 }
 
 void WebPortalServer::start() {
@@ -33,19 +56,15 @@ void WebPortalServer::start() {
         return;
     }
 
-#if defined(ARDUINO) || defined(ESP32)
-    // Mount LittleFS filesystem for serving frontend assets
-    if (!LittleFS.begin(false)) {
-        LittleFS.begin(true);
+    if (!_isInitialized) {
+        initialize();
     }
 
-    // Configure Access Point
+#if defined(ARDUINO) || defined(ESP32)
+    // Configure Access Point and start listening without heap allocations
     WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(_configuration.accessPointSsid, _configuration.accessPointPassword);
-
-    _server = std::make_unique<AsyncWebServer>(_configuration.port);
-    setupRoutes();
-    _server->begin();
+    _server.begin();
 #endif
 
     _isRunning = true;
@@ -57,10 +76,8 @@ void WebPortalServer::stop() {
     }
 
 #if defined(ARDUINO) || defined(ESP32)
-    if (_server) {
-        _server->end();
-        _server.reset();
-    }
+    // Terminate listening and disconnect SoftAP; routes remain registered
+    _server.end();
     WiFi.softAPdisconnect(true);
 #endif
 
@@ -71,41 +88,79 @@ bool WebPortalServer::isRunning() const {
     return _isRunning;
 }
 
+void WebPortalServer::update() {
+#if defined(ARDUINO) || defined(ESP32)
+    if (_pendingReboot.load(std::memory_order_acquire)) {
+        if (static_cast<int32_t>(millis() - _rebootTargetTimeMs) >= 0) {
+            _pendingReboot.store(false, std::memory_order_release);
+            _systemGateway.restart();
+        }
+    }
+
+    if (_pendingStop.load(std::memory_order_acquire)) {
+        if (static_cast<int32_t>(millis() - _stopTargetTimeMs) >= 0) {
+            _pendingStop.store(false, std::memory_order_release);
+            stop();
+        }
+    }
+#endif
+}
+
 #if defined(ARDUINO) || defined(ESP32)
 void WebPortalServer::setupRoutes() {
-    // 1. Wi-Fi Scan endpoint
-    _server->on("/api/wifi/scan", HTTP_GET, [](AsyncWebServerRequest* request) {
+    // 1. Wi-Fi Scan endpoint (Zero std::map, fixed array deduplication, streaming JSON)
+    _server.on("/api/wifi/scan", HTTP_GET, [](AsyncWebServerRequest* request) {
         const int numberOfNetworks = WiFi.scanNetworks();
+
+        struct ScannedNetworkEntry {
+            uint8_t index;
+            int32_t rssi;
+        };
+        std::array<ScannedNetworkEntry, MAX_SCANNED_NETWORKS> uniqueNetworks{};
+        size_t uniqueCount = 0;
+
+        for (int i = 0; i < numberOfNetworks; ++i) {
+            const String currentSsid = WiFi.SSID(i);
+            if (currentSsid.length() == 0) {
+                continue;
+            }
+            const int32_t currentRssi = WiFi.RSSI(i);
+
+            int existingSlot = -1;
+            for (size_t j = 0; j < uniqueCount; ++j) {
+                if (currentSsid.equals(WiFi.SSID(uniqueNetworks[j].index))) {
+                    existingSlot = static_cast<int>(j);
+                    break;
+                }
+            }
+
+            if (existingSlot >= 0) {
+                if (currentRssi > uniqueNetworks[existingSlot].rssi) {
+                    uniqueNetworks[existingSlot].index = static_cast<uint8_t>(i);
+                    uniqueNetworks[existingSlot].rssi = currentRssi;
+                }
+            } else if (uniqueCount < MAX_SCANNED_NETWORKS) {
+                uniqueNetworks[uniqueCount++] = {static_cast<uint8_t>(i), currentRssi};
+            }
+        }
+
         JsonDocument document;
         JsonArray networkList = document.to<JsonArray>();
 
-        std::map<String, int> bestNetworks;
-        for (int i = 0; i < numberOfNetworks; ++i) {
-            String ssid = WiFi.SSID(i);
-            if (ssid.length() == 0) {
-                continue;
-            }
-            if (bestNetworks.find(ssid) == bestNetworks.end()) {
-                bestNetworks[ssid] = i;
-            } else if (WiFi.RSSI(i) > WiFi.RSSI(bestNetworks[ssid])) {
-                bestNetworks[ssid] = i;
-            }
-        }
-
-        for (const auto& [ssid, index] : bestNetworks) {
+        for (size_t i = 0; i < uniqueCount; ++i) {
             JsonObject networkItem = networkList.add<JsonObject>();
-            networkItem["ssid"] = WiFi.SSID(index);
-            networkItem["rssi"] = WiFi.RSSI(index);
-            networkItem["protected"] = (WiFi.encryptionType(index) != WIFI_AUTH_OPEN);
+            networkItem["ssid"] = WiFi.SSID(uniqueNetworks[i].index);
+            networkItem["rssi"] = uniqueNetworks[i].rssi;
+            networkItem["protected"] = (WiFi.encryptionType(uniqueNetworks[i].index) != WIFI_AUTH_OPEN);
         }
 
-        String response;
-        serializeJson(document, response);
-        request->send(200, "application/json", response);
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
+        serializeJson(document, *response);
+        request->send(response);
     });
 
     // 2. Wi-Fi Connect endpoint
-    _server->on(
+    _server.on(
         "/api/wifi/connect",
         HTTP_POST,
         [](AsyncWebServerRequest* request) {
@@ -139,13 +194,19 @@ void WebPortalServer::setupRoutes() {
             }
         });
 
-    // 3. System Status endpoint
-    _server->on("/api/system/status", HTTP_GET, [this](AsyncWebServerRequest* request) {
+    // 3. System Status endpoint (streaming JSON, no intermediate String allocation)
+    _server.on("/api/system/status", HTTP_GET, [this](AsyncWebServerRequest* request) {
         const domain::SystemStatus systemStatus = _clockConfigurationApi.getSystemStatus();
         JsonDocument document;
 
-        const String ipAddress = (WiFi.getMode() & WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
-        document["ip"] = ipAddress;
+        char ipAddressBuffer[16]{};
+        if (WiFi.getMode() & WIFI_AP) {
+            WiFi.softAPIP().toString().toCharArray(ipAddressBuffer, sizeof(ipAddressBuffer));
+        } else {
+            WiFi.localIP().toString().toCharArray(ipAddressBuffer, sizeof(ipAddressBuffer));
+        }
+
+        document["ip"] = ipAddressBuffer;
         document["connected"] = (WiFi.status() == WL_CONNECTED);
         document["isWifiConnected"] = systemStatus.isWifiConnected;
         document["isTimeSynchronized"] = systemStatus.isTimeSynchronized;
@@ -163,37 +224,27 @@ void WebPortalServer::setupRoutes() {
                 break;
         }
 
-        String response;
-        serializeJson(document, response);
-        request->send(200, "application/json", response);
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
+        serializeJson(document, *response);
+        request->send(response);
     });
 
-    // 4. System Reboot endpoint
-    _server->on("/api/system/reboot", HTTP_POST, [this](AsyncWebServerRequest* request) {
+    // 4. System Reboot endpoint (Zero xTaskCreate heap allocation)
+    _server.on("/api/system/reboot", HTTP_POST, [this](AsyncWebServerRequest* request) {
         request->send(200, "application/json", "{\"status\":\"rebooting\"}");
-
-        xTaskCreate([](void* context) {
-            auto* gateway = static_cast<domain::SystemGateway*>(context);
-            vTaskDelay(pdMS_TO_TICKS(500));
-            gateway->restart();
-            vTaskDelete(NULL);
-        }, "deferred_restart_task", 2048, &_systemGateway, 1, NULL);
+        _rebootTargetTimeMs = millis() + 500;
+        _pendingReboot.store(true, std::memory_order_release);
     });
 
-    // 5. Setup Finish endpoint
-    _server->on("/api/setup/finish", HTTP_POST, [this](AsyncWebServerRequest* request) {
+    // 5. Setup Finish endpoint (Zero xTaskCreate heap allocation)
+    _server.on("/api/setup/finish", HTTP_POST, [this](AsyncWebServerRequest* request) {
         request->send(200, "application/json", "{\"status\":\"finishing\"}");
-
-        xTaskCreate([](void* context) {
-            auto* server = static_cast<WebPortalServer*>(context);
-            vTaskDelay(pdMS_TO_TICKS(1000));
-            server->stop();
-            vTaskDelete(NULL);
-        }, "deferred_stop_task", 4096, this, 1, NULL);
+        _stopTargetTimeMs = millis() + 1000;
+        _pendingStop.store(true, std::memory_order_release);
     });
 
-    // 6. Alarm Query endpoint
-    _server->on("/api/alarm", HTTP_GET, [this](AsyncWebServerRequest* request) {
+    // 6. Alarm Query endpoint (streaming JSON)
+    _server.on("/api/alarm", HTTP_GET, [this](AsyncWebServerRequest* request) {
         const domain::Alarm alarm = _clockConfigurationApi.getAlarm();
         JsonDocument document;
         document["hour"] = alarm.time.hours;
@@ -201,13 +252,13 @@ void WebPortalServer::setupRoutes() {
         document["soundTrackId"] = alarm.soundTrackId;
         document["enabled"] = alarm.enabled;
 
-        String response;
-        serializeJson(document, response);
-        request->send(200, "application/json", response);
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
+        serializeJson(document, *response);
+        request->send(response);
     });
 
     // 7. Alarm Update endpoint
-    _server->on(
+    _server.on(
         "/api/alarm",
         HTTP_POST,
         [](AsyncWebServerRequest* request) {
@@ -253,32 +304,21 @@ void WebPortalServer::setupRoutes() {
             }
         });
 
-    // 8. Audio Tracks list endpoint
-    _server->on("/api/audio/tracks", HTTP_GET, [](AsyncWebServerRequest* request) {
-        JsonDocument document;
-        JsonArray tracksArray = document.to<JsonArray>();
-
-        const struct { uint16_t id; const char* name; } availableTracks[] = {
-            {1, "Alarm Tone 1 (Chime)"},
-            {2, "Alarm Tone 2 (Classic Bell)"},
-            {3, "Alarm Tone 3 (Aviation Alert)"},
-            {4, "Alarm Tone 4 (Gentle Melody)"},
-            {5, "Alarm Tone 5 (Digital Pulse)"}
-        };
-
-        for (const auto& track : availableTracks) {
-            JsonObject item = tracksArray.add<JsonObject>();
-            item["id"] = track.id;
-            item["name"] = track.name;
-        }
-
-        String response;
-        serializeJson(document, response);
-        request->send(200, "application/json", response);
+    // 8. Audio Tracks list endpoint (static constant JSON, zero allocation)
+    _server.on("/api/audio/tracks", HTTP_GET, [](AsyncWebServerRequest* request) {
+        static constexpr const char* AUDIO_TRACKS_JSON =
+            "["
+            "{\"id\":1,\"name\":\"Alarm Tone 1 (Chime)\"},"
+            "{\"id\":2,\"name\":\"Alarm Tone 2 (Classic Bell)\"},"
+            "{\"id\":3,\"name\":\"Alarm Tone 3 (Aviation Alert)\"},"
+            "{\"id\":4,\"name\":\"Alarm Tone 4 (Gentle Melody)\"},"
+            "{\"id\":5,\"name\":\"Alarm Tone 5 (Digital Pulse)\"}"
+            "]";
+        request->send(200, "application/json", AUDIO_TRACKS_JSON);
     });
 
     // 9. Audio Preview Test endpoint
-    _server->on(
+    _server.on(
         "/api/audio/test",
         HTTP_POST,
         [](AsyncWebServerRequest* request) {
@@ -313,7 +353,7 @@ void WebPortalServer::setupRoutes() {
         });
 
     // 10. Static files from LittleFS
-    _server->serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
+    _server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 }
 #endif
 

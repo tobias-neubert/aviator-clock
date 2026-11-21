@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <mutex>
 #include "domain/AudioPlayer.h"
 
 #if defined(ARDUINO) || defined(ESP32)
@@ -86,6 +87,7 @@ private:
     uint8_t _currentVolume{25};
     uint16_t _currentTrack{0};
     bool _isPlaying{false};
+    mutable std::mutex _transmissionMutex;
 };
 
 } // namespace aviator::platform::audio

@@ -80,6 +80,8 @@ bool Jq6500AudioPlayer::isPlaying() const {
 }
 
 void Jq6500AudioPlayer::sendCommand(uint8_t command, const uint8_t* parameters, uint8_t parameterLength) {
+    std::lock_guard<std::mutex> lock(_transmissionMutex);
+
     // Protocol frame layout: [0x7E, Length, Command, Parameters..., 0xEF]
     // Length byte = Command (1 byte) + parameterLength + 1 = parameterLength + 2
     // Total frame size = parameterLength + 4

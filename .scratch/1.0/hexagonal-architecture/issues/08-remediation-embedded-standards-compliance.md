@@ -39,4 +39,10 @@ A code review of the current hexagonal architecture implementation against the r
   - `OperatingStateMachine::_currentMode` converted to `std::atomic<OperatingMode>` with CAS transitions.
   - `AlarmCoordinator` synchronized using a lock-free seqlock (`_alarmSequence`), atomic writer spinlock (`_writerLock`), and atomic booleans (`_isRinging`, `_isDismissedForCurrentAlarmEvent`), returning `Alarm` by value snapshot.
   - Added multi-threaded concurrency unit tests in `test_AlarmCoordinator.cpp` and `test_OperatingStateMachine.cpp` (all 108 tests passing).
+- Completed zero runtime dynamic allocation in `WebPortalServer` and UART synchronization in `Jq6500AudioPlayer` (Requirement 1 and remainder of Requirement 2):
+  - Eliminated `std::map<String, int>` in `/api/wifi/scan`, replacing with fixed `std::array<ScannedNetworkEntry, 16>` and in-place deduplication.
+  - Replaced intermediate `String response` buffers with direct `AsyncResponseStream` streaming and static JSON for `/api/audio/tracks`.
+  - Replaced runtime `xTaskCreate` / `vTaskDelete` in `/api/system/reboot` and `/api/setup/finish` with atomic timestamp triggers evaluated non-blockingly in `WebPortalServer::update()`.
+  - Converted `AsyncWebServer` to persistent member initialized once during boot.
+  - Guarded `Jq6500AudioPlayer::sendCommand()` with `std::mutex` and added concurrency unit test (all 109 tests passing).
 

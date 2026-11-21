@@ -69,6 +69,7 @@ void CompositionRoot::setup() {
     _alarmCoordinator.initialize();
     _audioPlayer.initialize();
     _setupButtonAdapter.initialize();
+    _webPortalServer.initialize();
 }
 
 void CompositionRoot::start() {
@@ -154,6 +155,8 @@ bool CompositionRoot::isRunning() const {
 
 void CompositionRoot::runClockLoop() {
     while (_isRunning.load()) {
+        _webPortalServer.update();
+
         if (_stateMachine.isNormalRunning()) {
             domain::TimeComponents components{};
             if (_timeSource.asTimeComponents(components)) {

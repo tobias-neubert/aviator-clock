@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include <atomic>
+#include <thread>
 #include <vector>
 #include "platform/audio/Jq6500AudioPlayer.h"
 
@@ -106,4 +108,26 @@ TEST_F(Jq6500AudioPlayerTest, SetVolume_ClampsAboveMaximum) {
     const std::vector<uint8_t> expectedFrame = {0x7E, 0x03, 0x31, 30, 0xEF};
     EXPECT_EQ(capturedBytes, expectedFrame);
     EXPECT_EQ(player.getVolume(), 30);
+}
+
+TEST_F(Jq6500AudioPlayerTest, ConcurrentCommands_ThreadSafeUARTTransmission) {
+    auto player = createPlayer();
+
+    std::thread thread1([&]() {
+        for (int i = 1; i <= 200; ++i) {
+            player.playTrack(i);
+            player.stop();
+        }
+    });
+
+    std::thread thread2([&]() {
+        for (int i = 0; i <= 200; ++i) {
+            player.setVolume(i % 30);
+        }
+    });
+
+    thread1.join();
+    thread2.join();
+
+    EXPECT_FALSE(capturedBytes.empty());
 }

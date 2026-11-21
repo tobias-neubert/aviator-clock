@@ -57,3 +57,12 @@ Per the Version 1.0 scope, configuration of both Wi-Fi and Alarms (including sel
    - **Finding:** `sendCommand()` writes to `_serial` without synchronization. Calls can arrive concurrently from `clock_engine_task` (alarm firing) and `AsyncWebServer` (`/api/audio/test` preview).
    - **Remediation Instructions:**
      - Protect `sendCommand()` with a mutex (or port-level critical section) to serialize UART transmissions across task boundaries.
+
+### Resolution (Resolved)
+- Replaced `std::map<String, int>` in `/api/wifi/scan` with a fixed-size `std::array<ScannedNetworkEntry, 16>` and in-place deduplication, eliminating heap node allocations.
+- Eliminated intermediate `String response` allocations across REST endpoints (`/api/wifi/scan`, `/api/system/status`, `/api/alarm`) by streaming JSON payloads directly via `AsyncResponseStream` (`request->beginResponseStream("application/json")`).
+- Replaced dynamic JSON construction in `/api/audio/tracks` with `constexpr const char[]` static JSON payload sent directly without allocation.
+- Eliminated runtime `xTaskCreate` / `vTaskDelete` task allocations in `/api/system/reboot` and `/api/setup/finish` by introducing non-allocating atomic timestamp triggers (`_pendingReboot`, `_pendingStop`) evaluated in `WebPortalServer::update()`.
+- Converted `AsyncWebServer` to a persistent member initialized once during startup (`initialize()`) rather than reallocated on the heap via `make_unique`/`reset` on every SetupMode transition.
+- Hardened `Jq6500AudioPlayer::sendCommand()` with `std::mutex` to prevent concurrent UART transmission interleaving between the alarm engine and web preview requests. Added concurrency test in `test_Jq6500AudioPlayer.cpp`.
+- Verified that all 109 unit tests pass (`pio test -e google_tests`) and ESP32 hardware build succeeds (`pio run -e nodemcu-32s`).
