@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <atomic>
+#include <thread>
 
 #include "domain/AlarmCoordinator.h"
 #include "MockAudioPlayer.h"
@@ -109,4 +111,37 @@ TEST_F(AlarmCoordinatorTest, SetAlarm_PersistsToStorage) {
 
     coordinator.setAlarm(newAlarm);
     EXPECT_EQ(coordinator.getAlarm(), newAlarm);
+}
+
+TEST_F(AlarmCoordinatorTest, ConcurrentReadWrite_ThreadSafetyGauntlet) {
+    std::atomic<bool> stopRunning{false};
+
+    std::thread readerThread([&]() {
+        uint8_t sec = 0;
+        while (!stopRunning.load()) {
+            coordinator.update(Time(7, 30, sec % 60));
+            const Alarm current = coordinator.getAlarm();
+            EXPECT_TRUE(current.time.isValid());
+            sec++;
+        }
+    });
+
+    std::thread writerThread([&]() {
+        for (int i = 0; i < 500; ++i) {
+            coordinator.setAlarm(Alarm(Time(i % 24, i % 60, 0), static_cast<uint16_t>((i % 5) + 1), (i % 2) == 0));
+        }
+    });
+
+    std::thread dismissThread([&]() {
+        while (!stopRunning.load()) {
+            coordinator.dismissAlarm();
+        }
+    });
+
+    writerThread.join();
+    stopRunning.store(true);
+    readerThread.join();
+    dismissThread.join();
+
+    EXPECT_TRUE(coordinator.getAlarm().time.isValid());
 }

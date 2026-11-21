@@ -35,4 +35,8 @@ A code review of the current hexagonal architecture implementation against the r
 - Verify through code inspection that no `new`, `malloc`, `std::map`, or `String` allocations occur during running task loops and HTTP request callbacks.
 
 ## Comments
+- Completed thread-safety hardening for `AlarmCoordinator` and `OperatingStateMachine` (Requirement 2):
+  - `OperatingStateMachine::_currentMode` converted to `std::atomic<OperatingMode>` with CAS transitions.
+  - `AlarmCoordinator` synchronized using a lock-free seqlock (`_alarmSequence`), atomic writer spinlock (`_writerLock`), and atomic booleans (`_isRinging`, `_isDismissedForCurrentAlarmEvent`), returning `Alarm` by value snapshot.
+  - Added multi-threaded concurrency unit tests in `test_AlarmCoordinator.cpp` and `test_OperatingStateMachine.cpp` (all 108 tests passing).
 

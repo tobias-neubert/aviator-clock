@@ -7,19 +7,19 @@ OperatingStateMachine::OperatingStateMachine(OperatingMode initialMode)
     : _currentMode(initialMode) {}
 
 OperatingMode OperatingStateMachine::getCurrentMode() const {
-    return _currentMode;
+    return _currentMode.load(std::memory_order_acquire);
 }
 
 bool OperatingStateMachine::isInitial() const {
-    return _currentMode == OperatingMode::Initial;
+    return _currentMode.load(std::memory_order_acquire) == OperatingMode::Initial;
 }
 
 bool OperatingStateMachine::isNormalRunning() const {
-    return _currentMode == OperatingMode::NormalRunning;
+    return _currentMode.load(std::memory_order_acquire) == OperatingMode::NormalRunning;
 }
 
 bool OperatingStateMachine::isSetupMode() const {
-    return _currentMode == OperatingMode::SetupMode;
+    return _currentMode.load(std::memory_order_acquire) == OperatingMode::SetupMode;
 }
 
 void OperatingStateMachine::setObserver(OperatingModeObserver* observer) {
@@ -31,25 +31,30 @@ void OperatingStateMachine::setSystemGateway(SystemGateway* systemGateway) {
 }
 
 void OperatingStateMachine::transitionTo(OperatingMode targetMode) {
-    if (_currentMode != targetMode) {
-        const OperatingMode previousMode = _currentMode;
-        _currentMode = targetMode;
-        if (_observer != nullptr) {
-            _observer->onOperatingModeChanged(previousMode, _currentMode);
+    OperatingMode previousMode = _currentMode.load(std::memory_order_acquire);
+    while (previousMode != targetMode) {
+        if (_currentMode.compare_exchange_weak(previousMode, targetMode,
+                                               std::memory_order_acq_rel,
+                                               std::memory_order_acquire)) {
+            if (_observer != nullptr) {
+                _observer->onOperatingModeChanged(previousMode, targetMode);
+            }
+            break;
         }
     }
 }
 
 void OperatingStateMachine::onStartupCompleted() {
-    if (_currentMode == OperatingMode::Initial) {
+    if (_currentMode.load(std::memory_order_acquire) == OperatingMode::Initial) {
         transitionTo(OperatingMode::NormalRunning);
     }
 }
 
 void OperatingStateMachine::onSetupButtonLongPressed() {
-    if (_currentMode == OperatingMode::NormalRunning) {
+    const OperatingMode mode = _currentMode.load(std::memory_order_acquire);
+    if (mode == OperatingMode::NormalRunning) {
         transitionTo(OperatingMode::SetupMode);
-    } else if (_currentMode == OperatingMode::SetupMode) {
+    } else if (mode == OperatingMode::SetupMode) {
         transitionTo(OperatingMode::NormalRunning);
     }
 }

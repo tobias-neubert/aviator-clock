@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <atomic>
+#include <thread>
 
 #include "domain/OperatingStateMachine.h"
 #include "MockSystemGateway.h"
@@ -80,4 +82,29 @@ TEST_F(OperatingStateMachineTest, OnSetupButtonFactoryReset_TriggersCredentialsR
     EXPECT_CALL(systemGateway, restart()).Times(1);
 
     stateMachine.onSetupButtonFactoryReset();
+}
+
+TEST_F(OperatingStateMachineTest, ConcurrentModeQueriesAndTransitions_ThreadSafe) {
+    std::atomic<bool> stopRunning{false};
+
+    std::thread readerThread([&]() {
+        while (!stopRunning.load()) {
+            const OperatingMode mode = stateMachine.getCurrentMode();
+            EXPECT_TRUE(mode == OperatingMode::Initial ||
+                        mode == OperatingMode::NormalRunning ||
+                        mode == OperatingMode::SetupMode);
+        }
+    });
+
+    std::thread transitionThread([&]() {
+        for (int i = 0; i < 500; ++i) {
+            stateMachine.enterSetupMode();
+            stateMachine.exitSetupMode();
+            stateMachine.onSetupButtonLongPressed();
+        }
+    });
+
+    transitionThread.join();
+    stopRunning.store(true);
+    readerThread.join();
 }

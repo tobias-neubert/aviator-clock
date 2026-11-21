@@ -49,3 +49,13 @@ Domain logic is currently trapped inside `lib/aviator-clock/` and mixed with har
    - **Finding:** `_currentMode` is a plain `OperatingMode` enum. It is mutated from `setup_btn_task` and the web server task, while being queried concurrently by `clock_engine_task` in `runClockLoop()`.
    - **Remediation Instructions:**
      - Declare `std::atomic<OperatingMode> _currentMode{initialMode}` to ensure thread-safe, lock-free status reads across task boundaries.
+
+### Resolution (Resolved)
+- Refactored `OperatingStateMachine` to store `std::atomic<OperatingMode> _currentMode{initialMode}` and utilize lock-free atomic compare-and-swap (`compare_exchange_weak`) for mode transitions and atomic acquires for queries (`getCurrentMode()`, `isInitial()`, `isNormalRunning()`, `isSetupMode()`).
+- Refactored `AlarmCoordinator` to eliminate all data races without dynamic allocation or blocking FreeRTOS primitives:
+  - Synchronized `_alarm` using a lightweight sequence lock (`std::atomic<uint32_t> _alarmSequence`) and atomic writer spinlock (`std::atomic<bool> _writerLock`), allowing readers (`update()` and `getAlarm()`) to read consistent snapshots lock-free and without priority inversion.
+  - Made `_isRinging` and `_isDismissedForCurrentAlarmEvent` atomic (`std::atomic<bool>`) using `compare_exchange_strong` for safe dismissal and atomic loads/stores.
+  - Made trigger record counters `_lastTriggeredMinute` and `_lastTriggeredHour` atomic (`std::atomic<int8_t>`).
+  - Updated `getAlarm()` signature to return `Alarm` by value snapshot instead of an unsafe mutable reference.
+- Added comprehensive multi-threaded concurrency unit tests (`ConcurrentReadWrite_ThreadSafetyGauntlet` and `ConcurrentModeQueriesAndTransitions_ThreadSafe`) verifying thread safety under high-frequency concurrent access across background reader, writer, and event threads.
+- All 108 unit tests pass with 100% success (`pio test -e google_tests`) and target firmware builds cleanly (`pio run -e nodemcu-32s`).

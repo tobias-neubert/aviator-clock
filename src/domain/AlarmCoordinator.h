@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+#include <cstdint>
 #include "domain/Alarm.h"
 #include "domain/AlarmStorage.h"
 #include "domain/AudioPlayer.h"
@@ -10,6 +12,9 @@ namespace aviator::domain {
 /**
  * @brief Coordinates alarm evaluation against real-time clock inputs, triggering
  * audio playback upon matching alarm time, and handling alarm dismissal.
+ * 
+ * Thread-safe for concurrent evaluation, user dismissals, and web configuration updates
+ * across multiple FreeRTOS tasks without dynamic memory allocation or blocking mutexes.
  */
 class AlarmCoordinator {
 public:
@@ -23,7 +28,7 @@ public:
     void stopAlarm();
 
     void setAlarm(const Alarm& alarm);
-    const Alarm& getAlarm() const;
+    Alarm getAlarm() const;
 
     bool isRinging() const;
     bool isDismissedForCurrentEvent() const;
@@ -32,11 +37,15 @@ private:
     AudioPlayer& _audioPlayer;
     AlarmStorage& _alarmStorage;
 
-    Alarm _alarm;
-    bool _isRinging{false};
-    bool _isDismissedForCurrentAlarmEvent{false};
-    int8_t _lastTriggeredMinute{-1};
-    int8_t _lastTriggeredHour{-1};
+    // Sequence lock for lock-free, zero-allocation concurrent reads/writes of _alarm
+    mutable std::atomic<uint32_t> _alarmSequence{0};
+    mutable std::atomic<bool> _writerLock{false};
+    Alarm _alarm{};
+
+    std::atomic<bool> _isRinging{false};
+    std::atomic<bool> _isDismissedForCurrentAlarmEvent{false};
+    std::atomic<int8_t> _lastTriggeredMinute{-1};
+    std::atomic<int8_t> _lastTriggeredHour{-1};
 };
 
 } // namespace aviator::domain

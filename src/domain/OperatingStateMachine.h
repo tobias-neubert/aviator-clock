@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+
 namespace aviator::domain {
 
 class SystemGateway;
@@ -25,6 +27,7 @@ public:
 
 /**
  * @brief Pure state machine managing operating modes (Initial, NormalRunning, SetupMode).
+ * Thread-safe for atomic mode queries and state transitions across FreeRTOS tasks.
  */
 class OperatingStateMachine {
 public:
@@ -47,7 +50,7 @@ public:
 private:
     void transitionTo(OperatingMode targetMode);
 
-    OperatingMode _currentMode;
+    std::atomic<OperatingMode> _currentMode;
     OperatingModeObserver* _observer{nullptr};
     SystemGateway* _systemGateway{nullptr};
 };
