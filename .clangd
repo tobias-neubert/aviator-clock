@@ -2,7 +2,6 @@ CompileFlags:
   CompilationDatabase: .
   Add:
     - -Isrc
-    - -Iinclude
     - -Itest/mocks
     - -std=gnu++17
     - -DARDUINO=10819
