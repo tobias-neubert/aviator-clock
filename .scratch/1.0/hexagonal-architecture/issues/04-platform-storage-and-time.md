@@ -9,8 +9,8 @@ Currently, persistent storage and time are split across `soc-api` (`IPersistentS
 ## Requirements
 1. Create `src/platform/storage/NvsAlarmStorage.h/.cpp` in namespace `aviator::platform::storage`:
    - Implements `aviator::domain::AlarmStorage`.
-   - Uses ESP32 `Preferences` directly to read and write alarm times for slots 0–7.
-   - Eliminates unnecessary intermediate layers (`IPersistentStorage`, `AlarmRepository`).
+   - Uses ESP32 `Preferences` directly to persist `Alarm` configuration (hour, minute, enabled, sound track ID).
+   - Eliminates intermediate layers (`IPersistentStorage`, `AlarmRepository`).
 2. Create `src/platform/time/NtpTimeSource.h/.cpp` in namespace `aviator::platform::time`:
    - Implements `aviator::domain::TimeSource`.
    - Encapsulates ESP-IDF SNTP initialization and POSIX `time()` querying.

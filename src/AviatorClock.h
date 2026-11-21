@@ -18,7 +18,6 @@ namespace soc
     namespace api
     {
         class IDigitalInput;
-        class IRotaryEncoder;
     }
 }
 namespace stepper
@@ -37,7 +36,6 @@ namespace wifi
     }
 }
 class IButton;
-class SwitchGroup;
 
 namespace aviator_clock
 {
@@ -46,7 +44,6 @@ namespace aviator_clock
     class ClockHand;
     class Time;
     class AlarmRepository;
-    class TimeEditor;
 
     /**
      * @brief The main application class for the Aviator Clock.
@@ -68,7 +65,6 @@ namespace aviator_clock
         static constexpr unsigned long RESET_POLL_INTERVAL_MS = 50;
         static constexpr unsigned long RESET_FEEDBACK_INTERVAL_MS = 1000;
         static constexpr unsigned long RESTART_DELAY_MS = 1000;
-        static constexpr uint8_t INVALID_SLOT = 255;
 
         /**
          * @brief Construct a new Aviator Clock object.
@@ -110,26 +106,7 @@ namespace aviator_clock
         static constexpr uint8_t PIN_HALL_EFFECT_SENSOR = 25; // Used for homing (zero position detection)
         
         // User Interface Inputs
-        static constexpr uint8_t PIN_SETUP_BUTTON = 15;       // Button to trigger WiFi config mode
-        static constexpr uint8_t PIN_MODE_BUTTON = 2;         // Button to switch display modes (e.g. Clock vs Timer)
-        
-        // Configuration DIP Switches (Binary Encoded Address/Mode)
-        // Dual In-line package switches with 3 bits allow for 8 unique combinations (0-7)
-        // Used for selecting alarm slots. Allows the user to set 8 different alarms 
-        // without needing a screen.
-        static constexpr uint8_t PIN_DIP_SWITCH_BIT_0 = 26;   // Least Significant Bit
-        static constexpr uint8_t PIN_DIP_SWITCH_BIT_1 = 27;
-        static constexpr uint8_t PIN_DIP_SWITCH_BIT_2 = 32;   // Most Significant Bit
-        
-        // Rotary Encoders (for manual time setting)
-        // Note: Pins 34-39 on ESP32 are input-only and have no internal pull-up resistors.
-        // External pull-up resistors are required on the PCB.
-        static constexpr uint8_t PIN_ENCODER_MINUTE_A = 36; 
-        static constexpr uint8_t PIN_ENCODER_MINUTE_B = 39; 
-        static constexpr uint8_t PIN_ENCODER_HOUR_A = 5;    // Strap Pin (Must be HIGH at boot) - Has Internal Pullup
-        static constexpr uint8_t PIN_ENCODER_HOUR_B = 4;    // Has Internal Pullup
-        
-        static constexpr int ENCODER_STEPS_PER_NOTCH = 4;
+        static constexpr uint8_t PIN_SETUP_BUTTON = 15;       // Button to trigger WiFi config mode and setup
 
         // --- Motor Configuration ---
         // why 1600?: 200 steps/rev * 8 microsteps (accel stepper default?) or similar.
@@ -165,7 +142,6 @@ namespace aviator_clock
         {
             Initial,
             NormalRunning,
-            AlarmSetup,
             WifiSetup
         };
 
@@ -182,29 +158,13 @@ namespace aviator_clock
         std::unique_ptr<ClockHand> _secondHand;
         std::unique_ptr<soc::api::ITask> _inputMonitoringTask;
 
-        // --- Alarm Setup Components ---
-        std::unique_ptr<soc::api::IDigitalInput> _modeButtonPin;
-        std::unique_ptr<IButton> _modeButton;
-        std::unique_ptr<soc::api::IRotaryEncoder> _minuteEncoder;
-        std::unique_ptr<soc::api::IRotaryEncoder> _hourEncoder;
-
-        // Switch Group Inputs
-        // These are used for selecting different alarm slots. The combination 
-        // of the 3 bits gives us a number from 0-7.
-        std::unique_ptr<soc::api::IDigitalInput> _switchBit0;
-        std::unique_ptr<soc::api::IDigitalInput> _switchBit1;
-        std::unique_ptr<soc::api::IDigitalInput> _switchBit2;
-        std::unique_ptr<SwitchGroup> _switchGroup;
-
         // Logic
         std::unique_ptr<class AlarmRepository> _alarmRepository;
-        std::unique_ptr<class TimeEditor> _timeEditor;
 
         State _currentState{State::Initial};
-        uint8_t _lastSelectedSlot{INVALID_SLOT};
 
         /**
-         * @brief The main loop for the input monitoring task (buttons & encoders).
+         * @brief The main loop for the input monitoring task (buttons).
          * Runs forever, checking for input events.
          */
         void _executeInputMonitoringLoop();
@@ -218,11 +178,6 @@ namespace aviator_clock
          * @brief Resumes the normal clock operation without homing (assumes valid position).
          */
         void _resumeNormalOperation();
-
-        // --- Alarm Setup Helpers ---
-        void _enterAlarmSetup();
-        void _updateAlarmSetup();
-        void _exitAlarmSetup();
 
         /**
          * @brief Handles WiFi setup interactions (auto-reconnect on exit, setup button actions).

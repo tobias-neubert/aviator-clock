@@ -29,12 +29,6 @@ namespace soc
     {
       return std::make_unique<MockDigitalInput>(pin, pullup);
     }
-    
-    std::unique_ptr<soc::api::IRotaryEncoder> MockSoc::createRotaryEncoder(
-        int pinA, int pinB, int stepsPerNotch)
-    {
-      return std::make_unique<MockRotaryEncoder>();
-    }
 
     std::unique_ptr<soc::api::ITask> MockSoc::createTask(
         soc::api::TaskFunction_t taskFunction, const std::string &name,

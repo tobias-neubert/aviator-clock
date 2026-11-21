@@ -10,15 +10,12 @@
 #include <stepper/accel/AccelStepperMotor.h>
 #include <stepper/homing/PreciseOneWayHomingStrategy.h>
 #include <buttons/impl/LongPressButton.h>
-#include <buttons/impl/SwitchGroup.h>
-#include <soc/api/IRotaryEncoder.h>
 #include <wifi/api/IWifiManager.h>
 
 // --- App Modules (Complete Type Definitions needed for implementation) ---
 #include "aviator-clock/ClockHand.h"
 #include "aviator-clock/Time.h"
 #include "aviator-clock/AlarmRepository.h"
-#include "aviator-clock/TimeEditor.h"
 
 
 static const char *TAG = "AviatorClock";
@@ -127,23 +124,8 @@ namespace aviator_clock
         {
             // --- Update Inputs ---
             _setupButton->update();
-            _modeButton->update();
 
-            // --- 1. Mode Switching Logic (Alarm Setup) ---
-            if (_modeButton->wasLongPressed()) {
-                if (_currentState == State::NormalRunning) {
-                    _enterAlarmSetup();
-                } else if (_currentState == State::AlarmSetup) {
-                    _exitAlarmSetup();
-                }
-            }
-
-            // --- 2. Alarm Setup Logic ---
-            if (_currentState == State::AlarmSetup) {
-                _updateAlarmSetup();
-            }
-
-            // --- 3. WiFi Setup Logic ---
+            // --- WiFi Setup Logic ---
             _handleWifiSetupInteractions(wasInSetupMode);
 
             _systemOnChip.getSleeper().sleep(BUTTON_POLL_INTERVAL_MS); // Check every 20ms
@@ -218,111 +200,15 @@ namespace aviator_clock
         }
     }
 
-    // --- Alarm Setup Implementation ---
-
-    void AviatorClock::_enterAlarmSetup() {
-        _systemOnChip.getLogger().i(TAG, "Entering Alarm Setup Mode");
-        _currentState = State::AlarmSetup;
-        
-        // Stop normal ticking
-        if (_secondHand) _secondHand->stop();
-        
-        // Reset encoders
-        _minuteEncoder->reset();
-        _hourEncoder->reset();
-        
-        // Read current slot
-        _lastSelectedSlot = _switchGroup->read();
-        _systemOnChip.getLogger().i(TAG, "Selected Slot: %d", _lastSelectedSlot);
-
-        // Load time for slot
-        Time t = _alarmRepository->getAlarm(_lastSelectedSlot);
-        _timeEditor->setTime(t);
-        
-        // Move hands
-        if (_secondHand) {
-            // Move to AM/PM pos
-            _secondHand->moveToValue(_timeEditor->getSecondHandTarget());
-        }
-    }
-
-    void AviatorClock::_exitAlarmSetup() {
-        _systemOnChip.getLogger().i(TAG, "Exiting Alarm Setup Mode");
-        
-        // Save Time from Editor back to Repository
-        Time t = _timeEditor->getTime();
-        _alarmRepository->setAlarm(_lastSelectedSlot, t);
-        
-        // Return to operational state
-        _resumeNormalOperation();
-    }
-
-    void AviatorClock::_updateAlarmSetup() {
-        // 1. Check Slot Change
-        uint8_t currentSlot = _switchGroup->read();
-        if (currentSlot != _lastSelectedSlot) {
-             _systemOnChip.getLogger().i(TAG, "Slot changed to: %d", currentSlot);
-             
-            // Save previous
-            Time t = _timeEditor->getTime();
-            _alarmRepository->setAlarm(_lastSelectedSlot, t);
-            
-            // Load new
-            _lastSelectedSlot = currentSlot;
-            Time newTime = _alarmRepository->getAlarm(currentSlot);
-            _timeEditor->setTime(newTime);
-            
-            // Update Hands
-            if (_secondHand) _secondHand->moveToValue(_timeEditor->getSecondHandTarget());
-            // TODO: Move Minute Hand (once available) to display newTime.minutes
-        }
-        
-        // 2. Read Encoders
-        _minuteEncoder->update();
-        int32_t deltaMin = _minuteEncoder->getDelta();
-        if (deltaMin != 0) {
-            _timeEditor->adjustMinutes(deltaMin);
-            _systemOnChip.getLogger().d(TAG, "Min Delta: %d, Value: %d", deltaMin, _timeEditor->getTime().minutes);
-        }
-
-        _hourEncoder->update();
-        int32_t deltaHour = _hourEncoder->getDelta();
-        if (deltaHour != 0) {
-            _timeEditor->adjustHours(deltaHour);
-            _systemOnChip.getLogger().d(TAG, "Hour Delta: %d, Value: %d", deltaHour, _timeEditor->getTime().hours);
-        }
-
-        // Update Hands if time changed
-        if (deltaMin != 0 || deltaHour != 0) {
-             // The second hand indicates AM/PM. Only move if AM/PM changed.
-            if (_secondHand) _secondHand->moveToValue(_timeEditor->getSecondHandTarget());
-            
-            // TODO: Move Minute/Hour Hand to reflect changes
-        }
-    }
-
     void AviatorClock::_initializeHardwareInputs()
     {
         _systemOnChip.getLogger().d(TAG, "Initializing Hardware Inputs...");
 
-        // 1. Digital Inputs & Buttons
+        // Digital Inputs & Buttons
         _hallSensor = _systemOnChip.createDigitalInput(PIN_HALL_EFFECT_SENSOR, true /* isActiveLow */);
 
         _setupButtonPin = _systemOnChip.createDigitalInput(PIN_SETUP_BUTTON, true /* isActiveLow */);
         _setupButton = std::make_unique<LongPressButton>(_systemOnChip, *_setupButtonPin);
-
-        _modeButtonPin = _systemOnChip.createDigitalInput(PIN_MODE_BUTTON, true); 
-        _modeButton = std::make_unique<LongPressButton>(_systemOnChip, *_modeButtonPin, SETUP_MODE_TOGGLE_MS);
-
-        // 2. DIP Switches
-        _switchBit0 = _systemOnChip.createDigitalInput(PIN_DIP_SWITCH_BIT_0, true);
-        _switchBit1 = _systemOnChip.createDigitalInput(PIN_DIP_SWITCH_BIT_1, true);
-        _switchBit2 = _systemOnChip.createDigitalInput(PIN_DIP_SWITCH_BIT_2, true);
-        _switchGroup = std::make_unique<SwitchGroup>(*_switchBit0, *_switchBit1, *_switchBit2);
-
-        // 3. Rotary Encoders
-        _minuteEncoder = _systemOnChip.createRotaryEncoder(PIN_ENCODER_MINUTE_A, PIN_ENCODER_MINUTE_B, ENCODER_STEPS_PER_NOTCH);
-        _hourEncoder = _systemOnChip.createRotaryEncoder(PIN_ENCODER_HOUR_A, PIN_ENCODER_HOUR_B, ENCODER_STEPS_PER_NOTCH);
     }
 
     void AviatorClock::_initializeLogicSubsystems()
@@ -331,8 +217,6 @@ namespace aviator_clock
 
         _alarmRepository = std::make_unique<AlarmRepository>(_systemOnChip.getPersistentStorage());
         _alarmRepository->begin();
-        
-        _timeEditor = std::make_unique<TimeEditor>();
     }
 
     void AviatorClock::_initializeMotorSubsystem()

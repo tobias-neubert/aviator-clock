@@ -27,7 +27,7 @@ The clock hand that indicates minutes within the current hour.
 _Avoid_: Long hand, minute pointer
 
 **Second Hand**:
-The clock hand that advances each second during normal timekeeping and indicates AM or PM during alarm setup.
+The clock hand that advances each second during normal timekeeping.
 _Avoid_: Tick hand, second pointer
 
 **Active Angle**:
@@ -52,38 +52,26 @@ _Avoid_: State machine, system status, execution phase
 The operating mode where hands advance continuously or step-by-step according to real-time clock data.
 _Avoid_: Clock mode, live mode, run mode
 
-**Alarm Setup Mode**:
-The interactive operating mode for inspecting and altering saved alarm times using manual inputs.
-_Avoid_: Edit mode, alarm config, setting mode
-
-**WiFi Setup Mode**:
-The operating mode where the clock hosts a wireless network to receive network credentials through a browser.
+**Setup Mode**:
+The operating mode where the clock hosts a wireless network to configure Wi-Fi credentials and alarm settings through a web browser.
 _Avoid_: AP mode, provisioning mode, portal mode
 
-### Alarm Configuration
+### Alarm & Audio
 
-**Alarm Slot**:
-One of eight persistent memory locations (indexed 0 to 7) storing an hour and minute alarm timestamp.
-_Avoid_: Memory bank, alarm channel, preset
+**Alarm**:
+A scheduled alert configured via the web interface specifying an hour, minute, and sound track.
+_Avoid_: Reminder, alert clock
 
-**Slot Selector**:
-A 3-bit binary toggle switch group that selects the active alarm slot.
-_Avoid_: DIP switch, address switch, binary selector
+**Sound Module**:
+The dedicated JQ6500-16P MP3 audio module used to store and play alarm sound tracks.
+_Avoid_: Buzzer, speaker board, audio player
 
-**Dual Rotary Encoder**:
-A dual-axis concentric rotary control with an integrated push button used for setting hours and minutes and toggling modes.
-_Avoid_: Knob, rotary dial, pulse wheel
-
-**Time Editor**:
-The logical unit responsible for adjusting time values incrementally with 12/24-hour arithmetic and overflow wrapping.
-_Avoid_: Adjuster, time counter, time calculator
-
-**AM/PM Indicator**:
-The visual state displayed by the second hand during alarm adjustment (top for AM, bottom for PM).
-_Avoid_: Day/night flag, meridian indicator
+**Alarm Sound**:
+An MP3 audio track stored on the sound module played when an alarm is triggered.
+_Avoid_: Ringtone, beep, audio file
 
 ### Connectivity & Web
 
 **Configuration Portal**:
-The embedded web interface served by the device for scanning networks and submitting credentials.
+The embedded web interface served by the device for scanning networks, submitting credentials, and configuring alarms.
 _Avoid_: Setup website, admin interface, portal app

@@ -4,16 +4,16 @@ Status: ready-for-agent
 Blocked by: 03, 04, 05, 06
 
 ## Context
-With all domain components, ports, and platform adapters implemented, the final step is to assemble the dependency injection wiring in `CompositionRoot`, rewire `src/main.cpp`, delete the 9 legacy libraries in `lib/`, and clean up `platformio.ini`.
+With all domain components, ports, and platform adapters implemented, the final step is to assemble the dependency injection wiring in `CompositionRoot`, rewire `src/main.cpp`, delete the legacy libraries in `lib/`, and clean up `platformio.ini`.
 
 ## Requirements
 1. Implement `src/app/CompositionRoot.h/.cpp` in namespace `aviator::app`:
-   - Instantiates platform adapters (`StepperSubsystem`, `NvsAlarmStorage`, `NtpTimeSource`, `InputPollerTask`, `WebPortalServer`).
-   - Instantiates domain services and state machine (`ClockEngine`, `TimeEditor`, `OperatingStateMachine`).
+   - Instantiates platform adapters (`StepperSubsystem`, `NvsAlarmStorage`, `NtpTimeSource`, `SetupButtonAdapter`, `Jq6500AudioPlayer`, `WebPortalServer`).
+   - Instantiates domain services and state machine (`ClockEngine`, `AlarmCoordinator`, `OperatingStateMachine`).
    - Wires platform adapters to domain ports via dependency injection.
    - Spawns background FreeRTOS tasks (`motor_runner_task`, `input_poller_task`).
 2. Update `src/main.cpp`:
-   - Initialize Serial and hardware pins via BSP `PinConfig.h`.
+   - Initialize Serial and hardware pins.
    - Call `CompositionRoot::setup()` and `CompositionRoot::start()`.
    - Call `vTaskDelete(NULL)` to terminate the Arduino `loop()` task.
 3. Remove legacy code:

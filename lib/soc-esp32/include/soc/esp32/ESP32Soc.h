@@ -40,8 +40,6 @@ namespace soc
 
             std::unique_ptr<soc::api::IDigitalInput> createDigitalInput(
                 int pin, bool pullup) override;
-            std::unique_ptr<soc::api::IRotaryEncoder> createRotaryEncoder(
-                int pinA, int pinB, int stepsPerNotch = 4) override;
 
             std::unique_ptr<soc::api::ITask> createTask(
                 soc::api::TaskFunction_t taskFunction, const std::string &name,

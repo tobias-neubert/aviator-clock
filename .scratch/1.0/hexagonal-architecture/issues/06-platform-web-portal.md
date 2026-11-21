@@ -1,24 +1,30 @@
-# 06 Implement Platform Web Portal Adapter (LittleFS, AsyncWebServer)
+# 06 Implement Platform Web Portal, Audio Adapter (JQ6500-16P) & Web UI
 
 Status: ready-for-agent
 Blocked by: 02
 
 ## Context
-Per ADR 0004, the web application (`web-client/`) builds static assets directly into `data/`. The firmware needs an HTTP web server adapter that serves these static assets and handles REST API endpoints without tangling web concerns into the domain core.
+Per the Version 1.0 scope, configuration of both Wi-Fi and Alarms (including selecting an alarm tone stored on the JQ6500-16P MP3 module) is managed entirely through the web interface. We need a web server adapter serving static LittleFS assets and providing REST APIs, an audio adapter controlling the JQ6500-16P module via UART, and an updated Svelte web frontend.
 
 ## Requirements
-1. Create `src/platform/web/WebPortalServer.h/.cpp` in namespace `aviator::platform::web`.
-2. Migrate relevant web server functionality from `lib/wifi-manager/`:
+1. Create `src/platform/audio/Jq6500AudioPlayer.h/.cpp` in namespace `aviator::platform::audio`:
+   - Implements domain port `aviator::domain::AudioPlayer`.
+   - Controls the JQ6500-16P MP3 module via hardware UART (e.g. `HardwareSerial(2)` / Serial2).
+   - Functions: `playTrack(uint16_t trackNumber)`, `stop()`, `setVolume(uint8_t volume)`.
+2. Create `src/platform/web/WebPortalServer.h/.cpp` in namespace `aviator::platform::web`:
    - Host `ESPAsyncWebServer` on port 80.
    - Serve pre-gzipped assets from LittleFS (`/index.html.gz`, `/assets/...`) with `Content-Encoding: gzip`.
-   - Implement REST endpoints (`GET /api/wifi/scan`, `POST /api/wifi/connect`, `GET /api/system/status`, `POST /api/system/reboot`).
-3. Connect REST operations to domain ports:
-   - Status, time, and alarm configuration queries call `ClockConfigurationApi`.
-   - Device restart and credential wipe call `SystemGateway`.
-4. Ensure all web request callbacks are non-blocking and memory-safe.
+   - REST API endpoints:
+     - Wi-Fi: `GET /api/wifi/scan`, `POST /api/wifi/connect`, `GET /api/system/status`, `POST /api/system/reboot`.
+     - Alarm: `GET /api/alarm` (fetch current alarm time, sound track, enabled state), `POST /api/alarm` (update alarm).
+     - Audio: `GET /api/audio/tracks` (list available MP3 tracks on JQ6500), `POST /api/audio/test` (play preview of selected track).
+3. Connect REST operations to domain port `ClockConfigurationApi` and `SystemGateway`.
+4. Update `web-client/` (Svelte 4 SPA):
+   - Add an Alarm Configuration card/section: set alarm time (HH:MM), enable/disable toggle, select MP3 sound from list with a "Test Play" button.
+   - Build assets with `npm run build` so that compressed artifacts are updated in `data/`.
 
 ## Verification
-- Verify that `web-client` assets in `data/` are correctly referenced.
+- Verify that `web-client` assets build cleanly and gzip into `data/`.
 - Verify compilation with `pio run -e nodemcu-32s`.
 
 ## Comments

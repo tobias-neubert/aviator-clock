@@ -1,26 +1,23 @@
-# 05 Implement Platform Input Adapter (Buttons, Encoders, DIP Switches)
+# 05 Implement Platform Input Adapter (Single Setup Button)
 
 Status: ready-for-agent
 Blocked by: 02
 
 ## Context
-User input processing is currently handled through `lib/buttons` (`LongPressButton`, `SwitchGroup`), `madhephaestus/ESP32Encoder`, and a polling loop in `AviatorClock.cpp`. We need a dedicated, non-blocking platform adapter that monitors all input hardware and dispatches events to the domain port `ClockInputEvents`.
+With the simplified Version 1.0 requirements, rotary encoders, DIP switches, and mode buttons are eliminated. Hardware user input is simplified to a single push button (`PIN_SETUP_BUTTON` on GPIO 15). We need a dedicated, non-blocking platform adapter that monitors this button and dispatches events to the domain port `ClockInputEvents`.
 
 ## Requirements
-1. Create `src/platform/input/` in namespace `aviator::platform::input`.
-2. Implement `RotaryEncoder`:
-   - Self-contained quadrature decoder using GPIO pin-change interrupts or PCNT driver, with zero external library dependencies.
-   - Replaces `madhephaestus/ESP32Encoder`.
-3. Implement `InputPollerTask`:
-   - Runs a single FreeRTOS task at a 20 ms polling interval.
-   - Reads the 3-bit DIP switches and detects changes in selected alarm slot.
-   - Updates and debounces pushbuttons (Mode button, Setup button), detecting short and long presses (3s for mode/setup toggle, 10s for factory reset).
-   - Polls encoder deltas for hours and minutes.
+1. Create `src/platform/input/SetupButtonAdapter.h/.cpp` in namespace `aviator::platform::input`:
+   - Monitors `PIN_SETUP_BUTTON` using active-low digital input logic and software debouncing.
+   - Detects short press: dispatches `onSetupButtonPressed()` (used to dismiss active alarm).
+   - Detects 3-second long press: dispatches `onSetupButtonLongPressed()` (toggle Setup Mode AP + Web Portal).
+   - Detects 10-second hold: dispatches `onSetupButtonFactoryReset()` (erase NVS credentials and reboot).
+   - Runs either in a lightweight FreeRTOS polling task (20 ms interval) or via GPIO interrupt.
    - Forwards detected actions directly to the domain port `ClockInputEvents`.
-   - Never blocks on motor motion or network I/O.
+2. Implement unit tests for button debouncing and timing in GoogleTest.
 
 ## Verification
-- Unit test button debouncing, long-press detection, and DIP switch binary decoding in GoogleTest.
+- Unit test short press, 3s long press, and 10s factory reset detection in GoogleTest.
 - Verify hardware compilation with `pio run -e nodemcu-32s`.
 
 ## Comments

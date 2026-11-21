@@ -1,6 +1,5 @@
 #include <soc/esp32/ESP32Soc.h>
 #include <soc/esp32/ESP32Task.h>
-#include "soc/esp32/ESP32RotaryEncoder.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <memory>
@@ -92,12 +91,6 @@ namespace soc
       auto input = std::make_unique<ESP32DigitalInput>(pin, pullup);
       input->begin(); // Initialize the pin mode.
       return input;
-    }
-
-    std::unique_ptr<soc::api::IRotaryEncoder> ESP32Soc::createRotaryEncoder(
-        int pinA, int pinB, int stepsPerNotch)
-    {
-        return std::make_unique<ESP32RotaryEncoder>(pinA, pinB, stepsPerNotch);
     }
     
     std::unique_ptr<soc::api::ITask> ESP32Soc::createTask(

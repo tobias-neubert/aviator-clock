@@ -1,19 +1,20 @@
-# 01 Fix ESP32 Build Baseline and Replace Deprecated ESP32Encoder
+# 01 Fix ESP32 Build Baseline, Debug Flags & Clean Obsolete Encoders
 
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 ## Context
-When running `pio run -e nodemcu-32s`, the build fails because PlatformIO pulls `espressif32@8.0.0` (Arduino-ESP32 Core 3.x / ESP-IDF 5.x), whereas the third-party library `madhephaestus/ESP32Encoder @ ^0.10.2` relies on the removed ESP-IDF 4.x legacy PCNT driver and obsolete FreeRTOS spinlock macros (`portMUX_TYPE`). Furthermore, `platformio.ini` has duplicate debug level definitions triggering compiler warnings.
+When running `pio run -e nodemcu-32s`, the build had duplicate debug level definitions triggering compiler warnings (`CORE_DEBUG_LEVEL redefined`), and the codebase previously contained deprecated `madhephaestus/ESP32Encoder` references. With the simplification for Version 1.0, physical rotary encoders and DIP switches are retired in favor of web-based configuration.
 
 ## Requirements
-1. Pin the ESP32 platform in `platformio.ini` to a stable tested version (or replace `ESP32Encoder` with a lightweight, interrupt-driven quadrature decoder in `src/platform/input/RotaryEncoder.h`).
-2. Clean up compiler flags in `platformio.ini` to prevent `"CORE_DEBUG_LEVEL" redefined` warnings.
-3. Verify that `pio run -e nodemcu-32s` succeeds.
-4. Verify that `pio test -e google_tests` continues to pass.
+1. Remove deprecated `madhephaestus/ESP32Encoder` dependency and obsolete encoder drivers.
+2. Clean up compiler flags in `platformio.ini` (`build_unflags = -DCORE_DEBUG_LEVEL=0`) to eliminate `"CORE_DEBUG_LEVEL" redefined` warnings.
+3. Verify that `pio run -e nodemcu-32s` builds cleanly with zero compiler warnings.
+4. Verify that `pio test -e google_tests` passes all tests.
 
 ## Verification
-- Run `pio run -e nodemcu-32s` and ensure exit code 0.
-- Run `pio test -e google_tests` and ensure all 38 tests pass.
+- `pio run -e nodemcu-32s` succeeds with exit code 0 and zero warnings.
+- `pio test -e google_tests` succeeds with exit code 0.
 
 ## Comments
+- Completed during baseline simplification for Version 1.0. Both tests and firmware compilation succeed cleanly.
