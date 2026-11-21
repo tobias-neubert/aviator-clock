@@ -11,6 +11,29 @@
 2. **Clean & Expressive Code:** Code should read like prose. Identifier names must clearly express their intent and responsibility, making the code largely self-explanatory.
 3. **Comments Explain HOW and WHY:** Comments must not describe *what* the code does (the code itself should be clear enough to show that). Comments explain *why* a particular design decision was made, what physical or electrical constraints apply, or *how* a non-obvious algorithm operates.
 
+## Embedded C++ & FreeRTOS Engineering Standards
+
+1. **Memory Discipline (Zero Dynamic Allocation in Runtime):**
+   - Dynamic memory allocation (`malloc`, `free`, `new`, `delete`, resizing `std::vector`, or `std::string`) is strictly forbidden within running FreeRTOS task loops, callbacks, and Interrupt Service Routines (ISRs).
+   - Dynamic allocation is only permitted once during system initialization in the Composition Root.
+   - Use fixed-size storage (`std::array`, static circular buffers) and pass references or pointers.
+2. **Stack Budget & Safety:**
+   - FreeRTOS task stacks have finite, pre-allocated depths. Never allocate large buffers or objects on the stack. Avoid recursion.
+3. **Hardware Abstraction Layer (HAL) Enforcement:**
+   - Domain logic and business rules must remain strictly isolated from target hardware and platform SDKs.
+   - Never directly call Arduino functions (`digitalRead`, `digitalWrite`, `delay`) or ESP-IDF APIs inside domain or application logic.
+   - Always program against `lib/soc-api` interfaces (`ISoc`, `IDigitalInput`, `IDigitalOutput`, `ITask`, `ISleeper`, `IPersistentStorage`). Hardware-specific implementations belong exclusively in `lib/soc-esp32`.
+4. **Concurrency & Thread Safety:**
+   - Shared mutable state accessed across multiple FreeRTOS tasks must be protected using appropriate synchronization primitives (queues, mutexes, task notifications).
+   - Every task loop must explicitly yield or block (`vTaskDelay`, queue wait) to prevent task starvation and watchdog timer resets.
+   - Never execute blocking logic or acquire mutexes inside an ISR. Use the dedicated `*FromISR` APIs and defer processing to a task.
+5. **Modern Embedded C++ Idioms:**
+   - Use `const` and `constexpr` rigorously for compile-time constants instead of `#define` macros or magic numbers.
+   - Use strongly typed enumerations (`enum class`).
+   - Prefer value semantics, references (`const Type&`), and `std::optional` or explicit status codes over C++ exceptions or RTTI (which are disabled on embedded targets).
+6. **Host Testability:**
+   - Code must be designed so that all domain and business logic can be compiled and executed on native host platforms without hardware attached, utilizing `lib/soc-mock` for unit testing (GoogleTest / Unity).
+
 ## Project Context & Architecture
 
 - **Domain Model & Glossary:** See `CONTEXT.md` at repository root. Always use this ubiquitous language when naming entities, writing specs, or filing issues.
