@@ -34,3 +34,26 @@ Per the Version 1.0 scope, configuration of both Wi-Fi and Alarms (including sel
 - Updated `PinConfig.h` with UART audio pins for JQ6500-16P.
 - Updated `web-client` Svelte 4 SPA with Alarm Configuration card, tone preview, and responsive styling; built compressed assets into `data/`.
 - Added unit tests in `test_audio` and `test_domain` covering audio and configuration service logic (14 new unit tests, all passing).
+
+### Code Review Findings: Embedded Standards & Dynamic Memory Allocation
+1. **Dynamic Memory Allocation in `WebPortalServer::setupRoutes` (`/api/wifi/scan`):**
+   - **Finding:** `std::map<String, int> bestNetworks` performs node-level dynamic heap allocations (`malloc`/`new`) for every discovered network. Additionally, `WiFi.SSID(i)` allocates Arduino `String` instances on the heap.
+   - **Remediation Instructions:**
+     - Replace `std::map<String, int>` with a fixed-capacity static array, e.g. `std::array<ScannedNetworkEntry, 16>` where `ScannedNetworkEntry` stores `char ssid[33]` and `int32_t rssi`.
+     - Perform in-place linear search or sorting without dynamic heap allocation.
+
+2. **Arduino `String` & Dynamic `JsonDocument` in Web Handlers:**
+   - **Finding:** Endpoints `/api/wifi/scan`, `/api/system/status`, `/api/alarm`, and `/api/audio/tracks` repeatedly construct `String response; serializeJson(document, response); request->send(200, "application/json", response);`. ArduinoJson 7 `JsonDocument` also uses dynamic heap allocation.
+   - **Remediation Instructions:**
+     - Stream JSON output directly using `AsyncResponseStream` (`AsyncWebServerRequest::beginResponseStream("application/json")`), eliminating intermediate `String` heap allocations.
+     - Where JSON responses are simple and static, pre-serialize them to `constexpr const char[]` or format into fixed-size stack buffers.
+
+3. **Runtime FreeRTOS Task Creation / Destruction (`xTaskCreate` / `vTaskDelete`):**
+   - **Finding:** Endpoints `/api/system/reboot` and `/api/setup/finish` invoke `xTaskCreate` on the fly to defer execution by 500 ms / 1000 ms. This dynamically allocates Task Control Blocks (TCBs) and stacks from the FreeRTOS heap (`pvPortMalloc`) during runtime, violating the zero-runtime-allocation and task lifetime persistence rules.
+   - **Remediation Instructions:**
+     - Replace dynamic task spawning with non-allocating deferred trigger flags (e.g. `std::atomic<bool> _pendingReboot` and `std::atomic<bool> _pendingSetupFinish`) inspected by the main clock loop or an existing background task, OR use a statically allocated FreeRTOS software timer (`xTimerCreateStatic`).
+
+4. **UART Concurrency in `Jq6500AudioPlayer`:**
+   - **Finding:** `sendCommand()` writes to `_serial` without synchronization. Calls can arrive concurrently from `clock_engine_task` (alarm firing) and `AsyncWebServer` (`/api/audio/test` preview).
+   - **Remediation Instructions:**
+     - Protect `sendCommand()` with a mutex (or port-level critical section) to serialize UART transmissions across task boundaries.

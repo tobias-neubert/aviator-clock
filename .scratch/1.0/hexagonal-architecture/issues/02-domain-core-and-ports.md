@@ -33,3 +33,19 @@ Domain logic is currently trapped inside `lib/aviator-clock/` and mixed with har
 - Created native GoogleMock/GoogleTest test doubles under `test/mocks/` and unit test suites under `test/gtests/test_domain/`.
 - Updated `platformio.ini` to build `src/domain/` into `env:google_tests` with `test_build_src = yes`.
 - Verified 100% test pass (48/48 test cases) with `pio test -e google_tests` and clean firmware build with `pio run -e nodemcu-32s`.
+
+### Code Review Findings: Embedded Standards & Thread Safety
+1. **Concurrency Risk in `AlarmCoordinator`:**
+   - **Finding:** `AlarmCoordinator` maintains mutable shared state (`_alarm`, `_isRinging`, `_isDismissedForCurrentAlarmEvent`) that is read and updated concurrently from multiple FreeRTOS tasks:
+     - `clock_engine_task`: evaluates `update(currentTime)` every 100 ms.
+     - `setup_btn_task`: invokes `dismissAlarm()` upon button release.
+     - `AsyncWebServer` task: reads and writes state via `getAlarm()`, `setAlarm()`, and `isRinging()`.
+     These fields currently lack mutual exclusion (mutex) or atomic operations, creating race conditions.
+   - **Remediation Instructions:**
+     - Make `_isRinging` and `_isDismissedForCurrentAlarmEvent` atomic (`std::atomic<bool>`).
+     - Guard `_alarm` reads and writes with a mutex, or provide atomic snapshot mechanics so that `update()` and `setAlarm()` cannot collide during partial struct copies.
+
+2. **Concurrency Risk in `OperatingStateMachine`:**
+   - **Finding:** `_currentMode` is a plain `OperatingMode` enum. It is mutated from `setup_btn_task` and the web server task, while being queried concurrently by `clock_engine_task` in `runClockLoop()`.
+   - **Remediation Instructions:**
+     - Declare `std::atomic<OperatingMode> _currentMode{initialMode}` to ensure thread-safe, lock-free status reads across task boundaries.

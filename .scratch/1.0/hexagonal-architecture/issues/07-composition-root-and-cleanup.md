@@ -38,3 +38,19 @@ With all domain components, ports, and platform adapters implemented, the final 
 - Added `DigitalInput` & `GpioDigitalInput` in `src/platform/sensor/` and `Logger` in `src/platform/logging/`, eliminating any remaining dependencies on legacy libraries.
 - Verified that all 106 GoogleTest unit tests pass with 100% success on the native host.
 - Verified that `pio run -e nodemcu-32s` builds cleanly with 0 errors and 0 warnings.
+
+### Code Review Findings: Embedded Standards & Object Lifecycles
+1. **Dynamic Instantiation of `AsyncWebServer` upon Operating Mode Changes:**
+   - **Finding:** In `WebPortalServer::start()` and `stop()`, `_server` is allocated via `std::make_unique<AsyncWebServer>(_configuration.port)` and destructed via `_server.reset()`. Every transition into and out of Setup Mode performs runtime heap allocations.
+   - **Remediation Instructions:**
+     - Pre-instantiate the server or maintain it as a persistent member object, calling `_server.begin()` and `_server.end()` instead of reallocating memory on the heap.
+
+2. **Task Deletion during Runtime Shutdown / Mode Switching:**
+   - **Finding:** `CompositionRoot::stop()`, `StepperSubsystem::stop()`, and `SetupButtonAdapter::stop()` call `vTaskDelete()` on running tasks. While acceptable for a full teardown, `ARCHITECTURE.md` Section 4 dictates that operational task lifecycles run continuously for the system lifetime and use event notifications / yielding rather than task recreation.
+   - **Remediation Instructions:**
+     - Keep background tasks (`motor_runner_task`, `setup_btn_task`, `clock_engine_task`) alive; transition them into a sleeping/waiting state using `xTaskNotifyWait` or condition flags rather than destroying and recreating them.
+
+3. **Global CompositionRoot Dynamic Allocation:**
+   - **Finding:** In `src/main.cpp`, `globalCompositionRoot = std::make_unique<aviator::app::CompositionRoot>()` allocates the entire CompositionRoot on the heap.
+   - **Remediation Instructions:**
+     - While permitted under the "once during initialization" exemption, this can be made strictly zero-heap by declaring `static aviator::app::CompositionRoot globalCompositionRoot;` with static storage duration.
