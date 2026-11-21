@@ -36,7 +36,7 @@ Phase 1: Build Baseline
   Ticket 01: [DONE] Fix ESP32 Build Baseline, Debug Flags & Clean Obsolete Encoders
 
 Phase 2: Domain Core & Ports
-  Ticket 02: Extract Pure Domain Core & Abstract Ports into src/domain/
+  Ticket 02: [DONE] Extract Pure Domain Core & Abstract Ports into src/domain/
 
 Phase 3: Platform Subsystems & Adapters
   Ticket 03: Implement Centralized Stepper Motor Execution Subsystem (3 Hands & Homing)

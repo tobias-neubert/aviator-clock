@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <iostream> // For printing to console in the mock
 #include <cstring>
 

@@ -1,6 +1,6 @@
 # 02 Extract Pure Domain Core and Abstract Ports into src/domain/
 
-Status: ready-for-agent
+Status: closed
 Blocked by: 01
 
 ## Context
@@ -28,3 +28,8 @@ Domain logic is currently trapped inside `lib/aviator-clock/` and mixed with har
 - Run `pio test -e google_tests` to verify that all domain unit tests pass against `src/domain/`.
 
 ## Comments
+- Implemented pure domain entities and services in `src/domain/` under `aviator::domain`: `Time.h`, `Alarm.h`, `DialGeometry.h/.cpp`, `AlarmCoordinator.h/.cpp`, `OperatingStateMachine.h/.cpp`, `ClockEngine.h/.cpp`.
+- Implemented pure abstract domain ports with no 'I' prefix: `HandActuator.h`, `AlarmStorage.h`, `TimeSource.h`, `AudioPlayer.h`, `ClockInputEvents.h`, `ClockConfigurationApi.h`, `SystemGateway.h`.
+- Created native GoogleMock/GoogleTest test doubles under `test/mocks/` and unit test suites under `test/gtests/test_domain/`.
+- Updated `platformio.ini` to build `src/domain/` into `env:google_tests` with `test_build_src = yes`.
+- Verified 100% test pass (48/48 test cases) with `pio test -e google_tests` and clean firmware build with `pio run -e nodemcu-32s`.
