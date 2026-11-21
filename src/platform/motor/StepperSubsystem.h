@@ -5,7 +5,6 @@
 #include "platform/motor/AccelStepperWrapper.h"
 #include "platform/motor/HomingStrategy.h"
 #include "platform/motor/PreciseOneWayHomingStrategy.h"
-#include "platform/motor/StepperController.h"
 #include "platform/motor/StepperHandActuator.h"
 #include <soc/api/ISoc.h>
 #include <soc/api/ITask.h>
