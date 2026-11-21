@@ -13,7 +13,7 @@ Dieses Dokument beschreibt das Bedienkonzept zum Einstellen der Weckzeiten für 
 *   **Funktion**: Adressierung der verschiedenen Alarmspeicher. Die 3 Schalter bilden zusammen ein 3-Bit-Muster, womit **8 verschiedene Speicherplätze (Slots 0-7)** adressiert werden können. Im Folgenden wird angenommen, dass die Schalterstellung einen spezifischen Speicherplatz ("Slot") auswählt.
 
 ### 2.2 Eingabegerät
-*   **Komponente**: Dual Rotary Encoder (siehe `doc/hardware/dual-rotary-encoder.pdf`).
+*   **Komponente**: Dual Rotary Encoder (siehe `docs/hardware/dual-rotary-encoder.pdf`).
 *   **Funktion**:
     *   **Drehung (Ring/Knopf)**: Einstellung von Stunden und Minuten.
     *   **Drucktaster**: Bestätigung und Moduswechsel.
