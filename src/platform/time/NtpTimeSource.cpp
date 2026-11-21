@@ -1,6 +1,6 @@
 #include "platform/time/NtpTimeSource.h"
 
-#include <cstdlib>
+#include <stdlib.h>
 #include <sys/time.h>
 
 #if __has_include(<esp_sntp.h>)
