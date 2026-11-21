@@ -1,9 +1,9 @@
 #pragma once
 
 #include "domain/HandActuator.h"
+#include "platform/logging/Logger.h"
 #include "platform/motor/HomingStrategy.h"
 #include "platform/motor/StepperController.h"
-#include <soc/api/Logger.h>
 #include <atomic>
 
 namespace aviator::platform::motor {
@@ -45,7 +45,7 @@ public:
         StepperController& stepperController,
         HomingStrategy& homingStrategy,
         const StepperActuatorConfig& config = StepperActuatorConfig{},
-        soc::api::Logger* logger = nullptr);
+        logging::Logger* logger = nullptr);
 
     ~StepperHandActuator() override = default;
 
@@ -92,7 +92,7 @@ private:
     StepperController& _stepperController;
     HomingStrategy& _homingStrategy;
     StepperActuatorConfig _config;
-    soc::api::Logger* _logger;
+    logging::Logger* _logger;
 
     // Synchronized state shared between domain threads and motor runner task
     std::atomic<double> _targetAngle{0.0};

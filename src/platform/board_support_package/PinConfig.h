@@ -14,6 +14,16 @@ struct StepperPinConfig {
 };
 
 /**
+ * @brief Pin mapping for the JQ6500-16P MP3 sound module over hardware UART.
+ */
+struct AudioPinConfiguration {
+    uint8_t receivePin{16};
+    uint8_t transmitPin{17};
+};
+
+using AudioPinConfig = AudioPinConfiguration;
+
+/**
  * @brief Complete pinout configuration for the Aviator Clock hardware platform.
  * ESP32 NodeMCU-32S default pin assignments:
  * - Second Hand: Step 14, Dir 12, Hall 25
@@ -21,6 +31,7 @@ struct StepperPinConfig {
  * - Hour Hand:   Step 19, Dir 18, Hall 35
  * - Common Motor Enable: Pin 33 (Active LOW)
  * - Single Setup Button: Pin 15 (Active LOW with pullup)
+ * - Sound Module (JQ6500-16P): Receive Pin 16, Transmit Pin 17 (Serial2)
  */
 struct HardwarePinConfig {
     StepperPinConfig hourHand{19, 18, 35};
@@ -28,6 +39,7 @@ struct HardwarePinConfig {
     StepperPinConfig secondHand{14, 12, 25};
     uint8_t motorEnablePin{33};
     uint8_t setupButtonPin{15};
+    AudioPinConfiguration audio{16, 17};
 };
 
 } // namespace aviator::platform::board_support_package

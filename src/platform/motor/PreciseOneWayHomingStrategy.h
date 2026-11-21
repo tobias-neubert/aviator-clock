@@ -1,9 +1,9 @@
 #pragma once
 
+#include "platform/logging/Logger.h"
 #include "platform/motor/HomingStrategy.h"
 #include "platform/motor/StepperController.h"
-#include <soc/api/IDigitalInput.h>
-#include <soc/api/Logger.h>
+#include "platform/sensor/DigitalInput.h"
 
 namespace aviator::platform::motor {
 
@@ -34,9 +34,9 @@ public:
 
     PreciseOneWayHomingStrategy(
         StepperController& stepperController,
-        soc::api::IDigitalInput& limitSwitch,
+        sensor::DigitalInput& limitSwitch,
         const PreciseHomingConfig& config = PreciseHomingConfig{},
-        soc::api::Logger* logger = nullptr);
+        logging::Logger* logger = nullptr);
 
     bool beginHoming() override;
     HomingResult updateHoming() override;
@@ -58,9 +58,9 @@ private:
     void enterPhase(Phase newPhase);
 
     StepperController& _stepperController;
-    soc::api::IDigitalInput& _limitSwitch;
+    sensor::DigitalInput& _limitSwitch;
     const PreciseHomingConfig _config;
-    soc::api::Logger* _logger;
+    logging::Logger* _logger;
     Phase _phase{Phase::NOT_STARTED};
     HomingResult _result{HomingResult::NOT_YET_STARTED};
 };

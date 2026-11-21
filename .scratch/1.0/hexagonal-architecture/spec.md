@@ -42,10 +42,10 @@ Phase 3: Platform Subsystems & Adapters
   Ticket 03: [DONE] Implement Centralized Stepper Motor Execution Subsystem (3 Hands & Homing)
   Ticket 04: [DONE] Implement Platform Storage (NVS) & Time (SNTP) Adapters
   Ticket 05: [DONE] Implement Platform Input Adapter (Single Setup Button)
-  Ticket 06: Implement Platform Web Portal, Audio Adapters (JQ6500-16P) & Web UI
+  Ticket 06: [DONE] Implement Platform Web Portal, Audio Adapters (JQ6500-16P) & Web UI
 
 Phase 4: Composition Root & Legacy Deletion
-  Ticket 07: Assemble CompositionRoot, Migrate main.cpp, and Remove Legacy lib/
+  Ticket 07: [DONE] Assemble CompositionRoot, Migrate main.cpp, and Remove Legacy lib/
 ```
 
 ## 5. Definition of Done

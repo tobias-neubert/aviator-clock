@@ -9,7 +9,7 @@ StepperHandActuator::StepperHandActuator(
     StepperController& stepperController,
     HomingStrategy& homingStrategy,
     const ActuatorConfig& config,
-    soc::api::Logger* logger)
+    logging::Logger* logger)
     : _stepperController(stepperController),
       _homingStrategy(homingStrategy),
       _config(config),

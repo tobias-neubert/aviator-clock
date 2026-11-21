@@ -1,6 +1,12 @@
 #pragma once
 
 #if __has_include(<AccelStepper.h>)
+#ifndef ARDUINO
+#define ARDUINO 10819
+#endif
+#if __has_include(<Arduino.h>)
+#include <Arduino.h>
+#endif
 #include <AccelStepper.h>
 #include "platform/motor/StepperController.h"
 

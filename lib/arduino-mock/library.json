@@ -1,9 +1,0 @@
-{
-    "name": "arduino-mock",
-    "version": "1.0.0",
-    "platforms": ["native"],
-    "build": {
-      "includeDir": "include"
-    }
-  }
-  

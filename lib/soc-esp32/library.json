@@ -1,9 +1,0 @@
-{
-  "name": "ESP32Driver",
-  "version": "1.0.0",
-  "dependencies": ["soc-api"],
-  "build": {
-    "includeDir": "include",
-    "flags": "-std=gnu++17"
-  }
-}

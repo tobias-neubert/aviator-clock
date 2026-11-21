@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
-#include "platform/motor/PreciseOneWayHomingStrategy.h"
+#include "MockDigitalInput.h"
 #include "MockStepperController.h"
-#include <soc/mock/MockDigitalInput.h>
+#include "platform/motor/PreciseOneWayHomingStrategy.h"
 
 using namespace aviator::platform::motor;
 using namespace aviator::test;
@@ -13,7 +13,7 @@ using ::testing::Return;
 class PreciseOneWayHomingStrategyTest : public ::testing::Test {
 protected:
     NiceMock<MockStepperController> controller;
-    soc::mock::MockDigitalInput sensor{25, true};
+    MockDigitalInput sensor{25, true};
     PreciseHomingConfig config{
         .homingSpeed = 200.0f,
         .homingAcceleration = 1000.0f,

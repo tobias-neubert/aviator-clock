@@ -6,9 +6,9 @@ static const char* TAG = "PreciseOneWayHoming";
 
 PreciseOneWayHomingStrategy::PreciseOneWayHomingStrategy(
     StepperController& stepperController,
-    soc::api::IDigitalInput& limitSwitch,
+    sensor::DigitalInput& limitSwitch,
     const Config& config,
-    soc::api::Logger* logger)
+    logging::Logger* logger)
     : _stepperController(stepperController),
       _limitSwitch(limitSwitch),
       _config(config),

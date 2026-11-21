@@ -87,12 +87,13 @@ aviator-clock/
 │   │   │   ├── StepperSubsystem.h   # Central FreeRTOS motor execution task
 │   │   │   └── StepperHandActuator.h# Implementation of HandActuator
 │   │   ├── input/
-│   │   │   ├── InputPollerTask.h    # Task polling buttons, DIP switches, encoders
-│   │   │   └── RotaryEncoder.h      # Quadrature rotary encoder driver
+│   │   │   └── SetupButtonAdapter.h # Inbound adapter monitoring single Setup Button (GPIO 15)
 │   │   ├── storage/
 │   │   │   └── NvsAlarmStorage.h    # Implementation of AlarmStorage via Preferences
 │   │   ├── time/
 │   │   │   └── NtpTimeSource.h      # Implementation of TimeSource via ESP-IDF SNTP
+│   │   ├── audio/
+│   │   │   └── Jq6500AudioPlayer.h  # Implementation of AudioPlayer for JQ6500-16P MP3 module
 │   │   └── web/
 │   │       └── WebPortalServer.h    # AsyncWebServer + LittleFS configuration portal
 │   │

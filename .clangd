@@ -3,12 +3,8 @@ CompileFlags:
   Add:
     - -Isrc
     - -Iinclude
-    - -Ilib/soc-api/include
-    - -Ilib/soc-mock/include
-    - -Ilib/buttons/include
-    - -Ilib/stepper-api/include
-    - -Ilib/accel-stepper-adapter/include
-    - -Ilib/wifi-manager/include
     - -Itest/mocks
-    - -I.pio/libdeps/nodemcu-32s/AccelStepper/src
     - -std=gnu++17
+    - -DARDUINO=10819
+    - -DESP32
+    - -DESP_PLATFORM

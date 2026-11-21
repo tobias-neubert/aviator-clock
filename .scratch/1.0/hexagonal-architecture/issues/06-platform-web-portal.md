@@ -1,6 +1,6 @@
 # 06 Implement Platform Web Portal, Audio Adapter (JQ6500-16P) & Web UI
 
-Status: ready-for-agent
+Status: closed
 Blocked by: 02
 
 ## Context
@@ -28,3 +28,9 @@ Per the Version 1.0 scope, configuration of both Wi-Fi and Alarms (including sel
 - Verify compilation with `pio run -e nodemcu-32s`.
 
 ## Comments
+- Implemented `Jq6500AudioPlayer` in `src/platform/audio/` implementing `aviator::domain::AudioPlayer` with JQ6500-16P serial protocol framing and unit test data sender injection.
+- Implemented `ClockConfigurationService` in `src/domain/` implementing inbound domain port `ClockConfigurationApi`.
+- Implemented `WebPortalServer` in `src/platform/web/` hosting `ESPAsyncWebServer` on port 80, serving static LittleFS assets and REST API endpoints.
+- Updated `PinConfig.h` with UART audio pins for JQ6500-16P.
+- Updated `web-client` Svelte 4 SPA with Alarm Configuration card, tone preview, and responsive styling; built compressed assets into `data/`.
+- Added unit tests in `test_audio` and `test_domain` covering audio and configuration service logic (14 new unit tests, all passing).

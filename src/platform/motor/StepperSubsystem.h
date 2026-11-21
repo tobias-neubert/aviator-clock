@@ -2,14 +2,20 @@
 
 #include "domain/HandActuator.h"
 #include "platform/board_support_package/PinConfig.h"
+#include "platform/logging/Logger.h"
 #include "platform/motor/AccelStepperWrapper.h"
 #include "platform/motor/HomingStrategy.h"
 #include "platform/motor/PreciseOneWayHomingStrategy.h"
+#include "platform/motor/StepperController.h"
 #include "platform/motor/StepperHandActuator.h"
-#include <soc/api/ISoc.h>
-#include <soc/api/ITask.h>
+#include "platform/sensor/DigitalInput.h"
 #include <atomic>
 #include <memory>
+
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#endif
 
 namespace aviator::platform::motor {
 
@@ -40,18 +46,18 @@ public:
      * @brief Dependency injection constructor for unit testing and custom compositions.
      */
     StepperSubsystem(
-        soc::api::ISoc& systemOnChip,
         StepperHandActuator& hourHand,
         StepperHandActuator& minuteHand,
-        StepperHandActuator& secondHand);
+        StepperHandActuator& secondHand,
+        logging::Logger* logger = nullptr);
 
 #if defined(AVIATOR_ACCEL_STEPPER_AVAILABLE)
     /**
      * @brief Target hardware constructor initializing drivers and Hall sensors from pin mappings.
      */
     explicit StepperSubsystem(
-        soc::api::ISoc& systemOnChip,
-        const StepperSubsystemHardwareConfig& config = StepperSubsystemHardwareConfig{});
+        const StepperSubsystemHardwareConfig& config = StepperSubsystemHardwareConfig{},
+        logging::Logger* logger = nullptr);
 #endif
 
     ~StepperSubsystem();
@@ -94,8 +100,8 @@ public:
 private:
     void runMotorRunnerLoop();
 
-    soc::api::ISoc& _systemOnChip;
-    soc::api::Logger& _logger;
+    logging::Logger _defaultLogger;
+    logging::Logger& _logger;
 
 #if defined(AVIATOR_ACCEL_STEPPER_AVAILABLE)
     // Hardware-owned instances when constructed directly from pin config
@@ -103,9 +109,9 @@ private:
     std::unique_ptr<StepperController> _minuteController;
     std::unique_ptr<StepperController> _secondController;
 
-    std::unique_ptr<soc::api::IDigitalInput> _hourSensor;
-    std::unique_ptr<soc::api::IDigitalInput> _minuteSensor;
-    std::unique_ptr<soc::api::IDigitalInput> _secondSensor;
+    std::unique_ptr<sensor::DigitalInput> _hourSensor;
+    std::unique_ptr<sensor::DigitalInput> _minuteSensor;
+    std::unique_ptr<sensor::DigitalInput> _secondSensor;
 
     std::unique_ptr<HomingStrategy> _hourHoming;
     std::unique_ptr<HomingStrategy> _minuteHoming;
@@ -122,7 +128,9 @@ private:
     StepperHandActuator& _secondHandActuator;
 
     std::atomic<bool> _isRunning{false};
-    std::unique_ptr<soc::api::ITask> _runnerTask;
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
+    TaskHandle_t _taskHandle{nullptr};
+#endif
 };
 
 } // namespace aviator::platform::motor

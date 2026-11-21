@@ -39,81 +39,108 @@ The **Aviator Clock** is an ESP32-based desktop clock inspired by classic analog
 
 ---
 
-## 3. Hardware Pin Assignments (`src/AviatorClock.h`)
+## 3. Hardware Pin Assignments (`src/platform/board_support_package/PinConfig.h`)
 
 | Signal / Role | ESP32 GPIO | Electrical Characteristics / Constraints |
 | :--- | :--- | :--- |
-| `PIN_STEPPER_STEP_PULSE` | 14 | Output to stepper driver STEP pin |
-| `PIN_STEPPER_DIRECTION` | 12 | Output to stepper driver DIR pin |
+| `Hour Hand Step / Dir / Hall` | 19 / 18 / 35 | Output STEP/DIR to driver, Hall zero sensor input |
+| `Minute Hand Step / Dir / Hall` | 27 / 26 / 34 | Output STEP/DIR to driver, Hall zero sensor input |
+| `Second Hand Step / Dir / Hall` | 14 / 12 / 25 | Output STEP/DIR to driver, Hall zero sensor input |
 | `PIN_MOTOR_ENABLE` | 33 | Output to stepper driver EN pin (Active LOW) |
-| `PIN_HALL_EFFECT_SENSOR` | 25 | Input from Hall sensor voltage divider (Active LOW) |
 | `PIN_SETUP_BUTTON` | 15 | Active LOW pushbutton (WiFi setup & factory reset) |
+| `JQ6500-16P UART RX / TX` | 16 / 17 | Hardware Serial2 to MP3 sound module (9600 8N1) |
 
 ---
 
 ## 4. Software Architecture & Module Directory
 
-The codebase follows the **Composition Root** pattern and strict layered abstraction.
+The codebase follows the **Hexagonal Architecture (Ports & Adapters)** pattern and strict single module structure rooted under `src/`.
 
 ```text
 .
 ├── src/
-│   ├── main.cpp                 # Bootstrap entry point; transfers control to FreeRTOS scheduler
-│   ├── AviatorClock.h           # Composition Root & State Machine header
-│   └── AviatorClock.cpp         # Component wiring, lifecycle management, input monitoring loop
-├── lib/
-│   ├── soc-api/                 # Hardware Abstraction Layer (HAL) interfaces
-│   ├── soc-esp32/               # Concrete ESP32 implementations (FreeRTOS, Preferences, GPIO)
-│   ├── soc-mock/                # Host test doubles for HAL
-│   ├── stepper-api/             # Abstract stepper motor & homing interfaces
-│   ├── accel-stepper-adapter/   # Wrapper for third-party AccelStepper library
-│   ├── buttons/                 # Input abstractions: LongPressButton, SwitchGroup
-│   ├── wifi-manager/            # IWifiManager, Esp32WifiManager (AsyncWebServer + LittleFS)
-│   ├── aviator-clock/           # Domain logic: ClockHand, Time, TimeEditor, AlarmRepository
-│   └── arduino-mock/            # Mock headers for native unity testing
-├── web-client/                  # Svelte 4 SPA frontend source
-├── data/                        # LittleFS filesystem binary assets (gzipped HTML/JS/CSS)
+│   ├── main.cpp                              # Bootstrap entry point; transfers control to FreeRTOS scheduler
+│   ├── app/                                  # Namespace: aviator::app
+│   │   ├── CompositionRoot.h/.cpp            # Composition root: dependency injection & task lifecycle
+│   │
+│   ├── domain/                               # Namespace: aviator::domain (Pure C++17)
+│   │   ├── DialGeometry.h/.cpp               # Dial angle calculations for 330.0° active arc
+│   │   ├── ClockEngine.h/.cpp                # Translates time into dial hand targets & wrap-arounds
+│   │   ├── AlarmCoordinator.h/.cpp           # Evaluates real-time clock and triggers/dismisses alarms
+│   │   ├── ClockConfigurationService.h/.cpp  # Domain service implementing ClockConfigurationApi
+│   │   ├── OperatingStateMachine.h/.cpp      # State machine (Initial, NormalRunning, SetupMode)
+│   │   ├── Alarm.h                           # Plain data struct for alarm settings
+│   │   ├── Time.h                            # Plain data struct for time components
+│   │   │
+│   │   │   # Ports (Domain boundary interfaces — NO 'I' prefix)
+│   │   ├── HandActuator.h                    # Outbound actuator contract (home, move, isHomed)
+│   │   ├── AlarmStorage.h                    # Outbound persistent storage contract
+│   │   ├── TimeSource.h                      # Outbound time provider contract
+│   │   ├── AudioPlayer.h                     # Outbound sound module playback contract
+│   │   ├── SystemGateway.h                   # Outbound restart & credentials recovery contract
+│   │   ├── ClockInputEvents.h                # Inbound hardware user interaction events
+│   │   └── ClockConfigurationApi.h           # Inbound clock management interface for Web UI
+│   │
+│   └── platform/                             # Namespace: aviator::platform (ESP32 & FreeRTOS)
+│       ├── board_support_package/
+│       │   └── PinConfig.h                   # Hardware pin assignments and electrical parameters
+│       ├── motor/
+│       │   ├── StepperSubsystem.h/.cpp       # Single high-priority FreeRTOS motor runner task
+│       │   ├── StepperHandActuator.h/.cpp    # Implementation of HandActuator port
+│       │   ├── PreciseOneWayHomingStrategy.h/.cpp # Precision one-way homing with backoff
+│       │   ├── AccelStepperWrapper.h         # Adapter wrapping third-party AccelStepper
+│       │   ├── StepperController.h           # Motor driver abstraction interface
+│       │   └── HomingStrategy.h              # Homing algorithm interface
+│       ├── input/
+│       │   └── SetupButtonAdapter.h/.cpp     # Inbound adapter monitoring single Setup Button (GPIO 15)
+│       ├── storage/
+│       │   └── NvsAlarmStorage.h/.cpp        # Implementation of AlarmStorage via Preferences (NVS)
+│       ├── time/
+│       │   └── NtpTimeSource.h/.cpp          # Implementation of TimeSource via SNTP & POSIX time
+│       ├── audio/
+│       │   └── Jq6500AudioPlayer.h/.cpp      # Implementation of AudioPlayer for JQ6500-16P MP3 module
+│       ├── web/
+│       │   └── WebPortalServer.h/.cpp        # AsyncWebServer + LittleFS configuration portal
+│       ├── system/
+│       │   └── EspSystemGateway.h            # Implementation of SystemGateway for ESP32
+│       ├── sensor/
+│       │   ├── DigitalInput.h                # Binary digital input interface
+│       │   └── GpioDigitalInput.h            # Microcontroller GPIO pin reader
+│       └── logging/
+│           └── Logger.h                      # Tag-based diagnostic logging
+├── web-client/                               # Svelte 4 SPA frontend source
+├── data/                                     # LittleFS filesystem binary assets (gzipped HTML/JS/CSS)
 ├── test/
-│   ├── gtests/                  # GoogleTest unit test suites (run on native host)
-│   └── unity-tests/             # Unity unit test suites (run on native host)
-└── platformio.ini               # PlatformIO build configuration
+│   ├── gtests/                               # GoogleTest unit test suites (run on native host)
+│   └── mocks/                                # Mock test doubles for native host unit tests
+└── platformio.ini                            # PlatformIO build configuration
 ```
 
 ### Module Breakdown
 
 1. **`src/main.cpp`**:
-   - Instantiates `globalSystemOnChip` (`ESP32Soc`), `globalWifiManager` (`Esp32WifiManager`), and `globalAviatorClockApplication` (`AviatorClock`).
+   - Instantiates `globalCompositionRoot` (`aviator::app::CompositionRoot`).
    - Invokes `setup()` and `start()`.
    - Calls `vTaskDelete(NULL)` in `loop()` so FreeRTOS scheduler handles all background tasks without an empty polling loop.
-2. **`AviatorClock` (`src/AviatorClock.cpp`)**:
-   - Owns state machine (`State::Initial`, `State::NormalRunning`, `State::WifiSetup`).
-   - Launches a dedicated FreeRTOS input monitoring task (`_inputMonitoringTask`, polling every 20ms).
-   - Coordinates long-press timing:
-     - Setup Button: 3 seconds = toggle Setup Mode; 10 seconds = Factory Reset (erases NVS credentials and restarts).
-3. **`lib/soc-api` & `lib/soc-esp32`**:
-   - Clean facade `ISoc` providing access to `ITime`, `ISleeper`, `Logger`, `IPersistentStorage`, `createTask()`, `createDigitalInput()`, `createDigitalOutput()`.
-   - `ESP32Task` uses `xTaskCreatePinnedToCore()` on FreeRTOS.
-   - `ESP32PersistentStorage` wraps ESP32 `Preferences` (NVS).
-4. **`lib/stepper-api` & `lib/accel-stepper-adapter`**:
-   - `IStepperMotor`: High-level stepper contract (`home()`, `moveToAbsolute()`, `stop()`, `update()`, `getState()`).
-   - `AccelStepperMotor`: State machine managing transitions across `Idle`, `HomingInProgress`, `HomingFailed`, `Moving`.
-   - `PreciseOneWayHomingStrategy`: Implements sensor detection, overshoot handling, and zero calibration.
-5. **`lib/buttons`**:
-   - `LongPressButton`: Tracks press start, active duration, debounces, and provides `wasLongPressed()`.
-6. **`lib/wifi-manager`**:
-   - `Esp32WifiManager`: Handles STA connection, AP captive portal (`Aviator-Clock-Setup`), LittleFS static web serving, and REST endpoints:
-     - `GET /api/wifi/scan`: Scans networks, returns deduplicated JSON with RSSI and encryption.
-     - `POST /api/wifi/connect`: Writes `ssid` and `password` to NVS `wifi-config` namespace.
-     - `GET /api/system/status`: Returns current IP and connection state.
-     - `POST /api/system/reboot`: Reboots device.
-     - `POST /api/setup/finish`: Exits AP mode after 1 second delay.
-7. **`lib/aviator-clock`**:
-   - `ClockHand`: Controls a single hand via its own FreeRTOS task loop. Translates target time units (0–59 or 0–11) into angular motor positions based on active dial angle. Supports `setup()`, `start()`, `stop()`, `resume()`, `moveToValue()`.
-   - `Time`: Plain data struct `{ hours, minutes, seconds }`.
-   - `AlarmRepository`: Persists alarm times using NVS namespace `alarms`.
+2. **`CompositionRoot` (`src/app/CompositionRoot.cpp`)**:
+   - Assembles platform adapters and wires them to domain ports via dependency injection.
+   - Manages FreeRTOS task lifecycles (`motor_runner_task`, `input_poller_task`, `clock_engine_task`).
+   - Implements `ClockInputEvents` and `OperatingModeObserver`.
+3. **`StepperSubsystem` (`src/platform/motor/StepperSubsystem.cpp`)**:
+   - Owns a single high-priority FreeRTOS task (`motor_runner_task`, Core 1) that steps all three dial hands simultaneously.
+4. **`SetupButtonAdapter` (`src/platform/input/SetupButtonAdapter.cpp`)**:
+   - Background polling task monitoring GPIO 15 with debouncing:
+     - Short press (< 3s): dismisses active ringing alarm.
+     - Long press (3s - 10s): toggles Setup Mode (AP + Web UI).
+     - Hold (>= 10s): triggers Factory Reset (erases NVS credentials and restarts).
+5. **`NvsAlarmStorage` & `NtpTimeSource`**:
+   - Direct integration with ESP32 NVS `Preferences` and ESP-IDF SNTP with POSIX timezone configuration.
+6. **`Jq6500AudioPlayer`**:
+   - Direct hardware UART driver for JQ6500-16P MP3 audio module.
+7. **`WebPortalServer`**:
+   - Hosts `ESPAsyncWebServer` on port 80, serves static gzipped files from LittleFS, and provides REST APIs for Wi-Fi and alarm configuration.
 8. **`web-client`**:
-   - Modern Svelte 4 SPA with Island architecture wireframe.
-   - Vite configuration with `vite-plugin-compression` outputs `.gz` directly into `../data/`.
+   - Modern Svelte 4 SPA built with Vite and `vite-plugin-compression` compressing assets into `data/`.
 
 ---
 

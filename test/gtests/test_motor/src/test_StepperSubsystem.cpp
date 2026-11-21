@@ -4,7 +4,6 @@
 #include "platform/motor/StepperSubsystem.h"
 #include "MockStepperController.h"
 #include "MockHomingStrategy.h"
-#include <soc/mock/MockSoc.h>
 
 using namespace aviator::platform::motor;
 using namespace aviator::test;
@@ -13,8 +12,6 @@ using ::testing::Return;
 
 class StepperSubsystemTest : public ::testing::Test {
 protected:
-    soc::mock::MockSoc soc;
-
     NiceMock<MockStepperController> hourController;
     NiceMock<MockStepperController> minuteController;
     NiceMock<MockStepperController> secondController;
@@ -29,7 +26,7 @@ protected:
     StepperHandActuator minuteActuator{minuteController, minuteHoming, config};
     StepperHandActuator secondActuator{secondController, secondHoming, config};
 
-    StepperSubsystem subsystem{soc, hourActuator, minuteActuator, secondActuator};
+    StepperSubsystem subsystem{hourActuator, minuteActuator, secondActuator};
 };
 
 TEST_F(StepperSubsystemTest, Accessors_ReturnCorrectActuators) {

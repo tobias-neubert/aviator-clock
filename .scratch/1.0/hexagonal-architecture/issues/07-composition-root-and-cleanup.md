@@ -1,6 +1,6 @@
 # 07 Assemble CompositionRoot, Migrate main.cpp, and Remove Legacy lib/
 
-Status: ready-for-agent
+Status: closed
 Blocked by: 03, 04, 05, 06
 
 ## Context
@@ -30,3 +30,11 @@ With all domain components, ports, and platform adapters implemented, the final 
 - Verify directory structure matches `docs/ARCHITECTURE.md`.
 
 ## Comments
+- Implemented `CompositionRoot.h/.cpp` in `src/app/` under namespace `aviator::app`, wiring all domain components, ports, and platform adapters via dependency injection.
+- Rewrote `src/main.cpp` to initialize Serial, instantiate `CompositionRoot`, call `setup()` and `start()`, and terminate the loop task with `vTaskDelete(NULL)`.
+- Removed legacy `src/AviatorClock.h` and `src/AviatorClock.cpp`.
+- Deleted all 9 legacy libraries in `lib/` (`soc-api`, `soc-esp32`, `soc-mock`, `stepper-api`, `accel-stepper-adapter`, `buttons`, `wifi-manager`, `aviator-clock`, `arduino-mock`).
+- Cleaned up `platformio.ini`, removing `lib_ignore` and legacy dependencies.
+- Added `DigitalInput` & `GpioDigitalInput` in `src/platform/sensor/` and `Logger` in `src/platform/logging/`, eliminating any remaining dependencies on legacy libraries.
+- Verified that all 106 GoogleTest unit tests pass with 100% success on the native host.
+- Verified that `pio run -e nodemcu-32s` builds cleanly with 0 errors and 0 warnings.

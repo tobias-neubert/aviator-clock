@@ -1,32 +1,31 @@
 #include "platform/motor/StepperSubsystem.h"
+#include "platform/sensor/GpioDigitalInput.h"
 
 namespace aviator::platform::motor {
 
 static const char* TAG = "StepperSubsystem";
 
 StepperSubsystem::StepperSubsystem(
-    soc::api::ISoc& systemOnChip,
     StepperHandActuator& hourHand,
     StepperHandActuator& minuteHand,
-    StepperHandActuator& secondHand)
-    : _systemOnChip(systemOnChip),
-      _logger(systemOnChip.getLogger()),
+    StepperHandActuator& secondHand,
+    logging::Logger* logger)
+    : _logger(logger != nullptr ? *logger : _defaultLogger),
       _hourHandActuator(hourHand),
       _minuteHandActuator(minuteHand),
       _secondHandActuator(secondHand) {}
 
 #if defined(AVIATOR_ACCEL_STEPPER_AVAILABLE)
 StepperSubsystem::StepperSubsystem(
-    soc::api::ISoc& systemOnChip,
-    const HardwareConfig& config)
-    : _systemOnChip(systemOnChip),
-      _logger(systemOnChip.getLogger()),
+    const HardwareConfig& config,
+    logging::Logger* logger)
+    : _logger(logger != nullptr ? *logger : _defaultLogger),
       _hourController(std::make_unique<AccelStepperWrapper>(config.hourPins.stepPin, config.hourPins.directionPin)),
       _minuteController(std::make_unique<AccelStepperWrapper>(config.minutePins.stepPin, config.minutePins.directionPin)),
       _secondController(std::make_unique<AccelStepperWrapper>(config.secondPins.stepPin, config.secondPins.directionPin)),
-      _hourSensor(systemOnChip.createDigitalInput(config.hourPins.hallSensorPin, true)),
-      _minuteSensor(systemOnChip.createDigitalInput(config.minutePins.hallSensorPin, true)),
-      _secondSensor(systemOnChip.createDigitalInput(config.secondPins.hallSensorPin, true)),
+      _hourSensor(std::make_unique<sensor::GpioDigitalInput>(config.hourPins.hallSensorPin, true)),
+      _minuteSensor(std::make_unique<sensor::GpioDigitalInput>(config.minutePins.hallSensorPin, true)),
+      _secondSensor(std::make_unique<sensor::GpioDigitalInput>(config.secondPins.hallSensorPin, true)),
       _hourHoming(std::make_unique<PreciseOneWayHomingStrategy>(*_hourController, *_hourSensor, config.homingConfig, &_logger)),
       _minuteHoming(std::make_unique<PreciseOneWayHomingStrategy>(*_minuteController, *_minuteSensor, config.homingConfig, &_logger)),
       _secondHoming(std::make_unique<PreciseOneWayHomingStrategy>(*_secondController, *_secondSensor, config.homingConfig, &_logger)),
@@ -55,11 +54,22 @@ void StepperSubsystem::start() {
     }
     _isRunning.store(true);
     _logger.i(TAG, "Starting motor runner task...");
-    _runnerTask = _systemOnChip.createTask(
-        [this]() { this->runMotorRunnerLoop(); },
+
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
+    xTaskCreatePinnedToCore(
+        [](void* context) {
+            auto* self = static_cast<StepperSubsystem*>(context);
+            self->runMotorRunnerLoop();
+            vTaskDelete(NULL);
+        },
         "motor_runner_task",
         4096,
-        5);
+        this,
+        5,
+        &_taskHandle,
+        1
+    );
+#endif
 }
 
 void StepperSubsystem::stop() {
@@ -68,9 +78,14 @@ void StepperSubsystem::stop() {
     }
     _isRunning.store(false);
     _logger.i(TAG, "Stopping motor runner task...");
-    if (_runnerTask) {
-        _runnerTask.reset();
+
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
+    if (_taskHandle != nullptr) {
+        vTaskDelete(_taskHandle);
+        _taskHandle = nullptr;
     }
+#endif
+
     stopAll();
 }
 
@@ -89,13 +104,13 @@ void StepperSubsystem::runMotorRunnerLoop() {
     _logger.i(TAG, "Motor runner task loop entered.");
     while (_isRunning.load()) {
         const bool isAnyMotorActive = stepIteration();
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
         if (isAnyMotorActive) {
-            // Actively pulsing motors: yield to prevent starvation without inserting tick delays
-            _systemOnChip.getSleeper().sleep(0);
+            taskYIELD();
         } else {
-            // All motors idle: sleep 1ms to yield CPU to background/IDLE tasks
-            _systemOnChip.getSleeper().sleep(1);
+            vTaskDelay(pdMS_TO_TICKS(1));
         }
+#endif
     }
     _logger.i(TAG, "Motor runner task loop terminated.");
 }
@@ -125,10 +140,10 @@ StepperHandActuator& StepperSubsystem::getSecondHandActuator() {
 }
 
 bool StepperSubsystem::homeAll() {
-    const bool hourResult = _hourHandActuator.home();
-    const bool minuteResult = _minuteHandActuator.home();
-    const bool secondResult = _secondHandActuator.home();
-    return hourResult && minuteResult && secondResult;
+    const bool hourOk = _hourHandActuator.home();
+    const bool minuteOk = _minuteHandActuator.home();
+    const bool secondOk = _secondHandActuator.home();
+    return hourOk && minuteOk && secondOk;
 }
 
 bool StepperSubsystem::isAllHomed() const {

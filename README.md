@@ -15,11 +15,12 @@ The **Aviator Clock** recreates the aesthetics and mechanics of vintage cockpit 
 - **Magnetic Zero-Point Calibration (Homing):** A3144 Hall-effect sensors and neodymium magnets automatically align each hand to its zero point on power-up.
 - **NTP Time Synchronization:** Automatically synchronizes system time via Wi-Fi with local timezone support.
 - **Offline Fallback:** Continues accurate timekeeping even when Wi-Fi is temporarily unavailable.
-- **Physical Alarm Configuration:**
-  - **Slot Selector:** 3-bit binary toggle switch group to select one of 8 persistent alarm slots.
-  - **Dual Rotary Encoder:** Concentric dual-axis encoder to adjust hours and minutes interactively.
-  - **AM/PM Visual Indicator:** The second hand points to 12 o'clock (0°) for AM or 6 o'clock (165°) for PM during alarm adjustment.
-- **Embedded Web Configuration Portal:** Embedded Single Page Application (Svelte 4 + TypeScript) served directly from LittleFS for Wi-Fi provisioning and device setup.
+- **Audio Alert System:** JQ6500-16P MP3 module connected via UART plays user-selected alarm sound tracks.
+- **Single Hardware Setup Button:**
+  - Short press: Dismisses an active ringing alarm.
+  - 3-second long press: Enters Setup Mode (WiFi AP + Web Portal).
+  - 10-second hold: Triggers factory reset (clears stored credentials and restarts).
+- **Embedded Web Configuration Portal:** Embedded Single Page Application (Svelte 4 + TypeScript) served directly from LittleFS for Wi-Fi provisioning, alarm time settings, and audio tone selection with preview.
 - **Modern Embedded Architecture:** Hexagonal (Ports & Adapters) design in C++17 with FreeRTOS, zero runtime dynamic allocation, and full native host testability.
 
 ---
@@ -31,10 +32,8 @@ The **Aviator Clock** recreates the aesthetics and mechanics of vintage cockpit 
 - **Actuators:** 3× Bipolar Stepper Motors (200 steps/rev, configured to 1600 effective steps/rev with 8× microstepping)
 - **Motor Drivers:** TMC2209 or A4988 Step/Direction drivers with software enable control
 - **Zero-Point Sensors:** 3× A3144 Unipolar Digital Hall-Effect Sensors with voltage dividers (5V to 3.3V safe)
-- **User Controls:**
-  - Dual Concentric Rotary Encoder with integrated push button
-  - Mode Selection Push Button
-  - 3-position DIP / Toggle Switch Group (3-bit binary slot selector)
+- **Audio Output:** JQ6500-16P MP3 module connected via UART (GPIO 16 RX / GPIO 17 TX)
+- **User Control:** 1× Pushbutton (GPIO 15) for Setup Mode / Factory Reset / Alarm Dismissal
 
 For full electrical schematics and pinout specifications, see [`docs/SYSTEM_INVENTORY.md`](docs/SYSTEM_INVENTORY.md).
 
@@ -50,9 +49,10 @@ The firmware is designed using **Hexagonal Architecture (Ports & Adapters)** to 
 │               (Outside World: Hardware, FreeRTOS, Network)             │
 │                                                                        │
 │   [Driving Adapters]                        [Driven Adapters]          │
-│   ├── FreeRTOS Input Poller Task            ├── Central Motor Runner   │
+│   ├── SetupButtonAdapter (GPIO 15)          ├── Central Motor Runner   │
 │   ├── NTP Time Sync Adapter                 ├── NVS Storage Adapter    │
-│   └── Web Portal (LittleFS + AsyncWeb)      └── WiFi / System Control  │
+│   └── Web Portal (LittleFS + AsyncWeb)      ├── Audio Player (JQ6500)  │
+│                                             └── System Gateway (Reset) │
 │        │                                                ▲              │
 │        ▼                                                │              │
 │   ┌──────────────────────────────────────────────────────────┐         │
@@ -62,13 +62,15 @@ The firmware is designed using **Hexagonal Architecture (Ports & Adapters)** to 
 │   │   ├── ClockInputEvents           ├── HandActuator        │         │
 │   │   └── ClockConfigurationApi      ├── AlarmStorage        │         │
 │   │                                  ├── TimeSource          │         │
+│   │                                  ├── AudioPlayer         │         │
 │   │                                  └── SystemGateway       │         │
 │   │                                                          │         │
 │   │   Core Domain Logic (Zero FreeRTOS / ESP32 / Arduino):   │         │
 │   │   ├── DialGeometry (330° arc, angle translations)        │         │
 │   │   ├── ClockEngine (Time-to-angle mapping, wrap-around)   │         │
-│   │   ├── TimeEditor & Alarm (Slot arithmetic, AM/PM math)   │         │
-│   │   └── OperatingStateMachine (Normal, AlarmSetup, WiFi)   │         │
+│   │   ├── AlarmCoordinator (Real-time alarm evaluation)      │         │
+│   │   ├── ClockConfigurationService (Web API coordinator)    │         │
+│   │   └── OperatingStateMachine (Initial, Normal, SetupMode) │         │
 │   └──────────────────────────────────────────────────────────┘         │
 └────────────────────────────────────────────────────────────────────────┘
 ```
@@ -121,6 +123,59 @@ pio run -e nodemcu-32s -t upload
 # Monitor serial output (115200 baud)
 pio device monitor
 ```
+
+---
+
+## Local Web Client Development & Testing
+
+You can run and test the web configuration portal entirely locally on your development machine in any modern web browser without an ESP32 connected and without flashing LittleFS.
+
+### Starting the Local Development Server
+
+1. **Navigate to the web client directory:**
+   ```bash
+   cd web-client
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   # or with pnpm:
+   pnpm install
+   ```
+
+3. **Start the Vite development server:**
+   ```bash
+   npm run dev
+   # or with pnpm:
+   pnpm dev
+   ```
+
+4. **Open in browser:**
+   Open the URL displayed in the terminal (typically `http://localhost:5173`).
+
+Changes to files in `web-client/src/` will update instantly in the browser thanks to Vite's Hot Module Replacement (HMR).
+
+### What Works (Mocked in Development Mode)
+
+When running via `npm run dev`, `import.meta.env.DEV` automatically activates the built-in mock handlers in `web-client/src/lib/api.ts`:
+
+- **Complete User Interface:** Dark/light mode theme toggle, form controls, responsive layout, and visual states.
+- **Wi-Fi Scanning & Connection:** Simulates scanning available networks (`Home_WiFi`, `Guest_WiFi`, `Aviation_Club`) with realistic network delays, RSSI signal indicators, and password authentication flows.
+- **Alarm Configuration:** Loading, modifying, and saving alarm time, enabled status, and sound track selection (values persist in memory for the duration of the dev session).
+- **Audio Track Selection & Previews:** Displays the track list and simulates triggering/stopping audio previews (actions are logged to the browser developer console `F12`).
+- **System Status Display:** Simulates system status responses (IP `192.168.4.1`, setup mode, connection flags).
+- **Device Actions:** Device reboot and setup finalization trigger simulated responses and console logs.
+
+### What Does Not Work (Hardware & ESP32 Dependencies)
+
+Because the development server runs standalone in the browser on your PC:
+
+- **No Physical Hardware Movement:** Stepper motors do not move; physical hands and dials do not rotate or indicate AM/PM.
+- **No Physical Audio Output:** The JQ6500 MP3 module is not connected; audio preview calls do not emit sound on your PC speakers (actions are logged to the console).
+- **No Real Wi-Fi Control:** The browser does not scan real physical 2.4 GHz SSIDs or change network adapter settings.
+- **Non-Persistent Flash Storage:** Modified alarm settings are stored in memory and reset on page reload, unlike the persistent NVS storage on the ESP32.
+- **LittleFS Gzip Delivery:** Vite serves unbundled/hot-reloaded assets from memory rather than the pre-compressed `.gz` static files delivered by the C++ firmware's LittleFS server. (To test the final bundle, run `npm run build` and flash via `pio run -t uploadfs`).
 
 ---
 
