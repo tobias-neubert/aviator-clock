@@ -5,6 +5,7 @@ How engineering skills consume this repo's domain documentation when exploring t
 ## Before exploring, read these
 
 - **`CONTEXT.md`** at the repo root.
+- **`docs/ARCHITECTURE.md`** — target hexagonal architecture, namespaces, and FreeRTOS rules.
 - **`docs/adr/`** — read ADRs that touch the area you are about to work in.
 
 If any of these files don't exist, proceed silently. The `/domain-modeling` skill creates them lazily when terms or decisions get resolved.

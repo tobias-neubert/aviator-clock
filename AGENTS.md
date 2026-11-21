@@ -9,7 +9,8 @@
 
 1. **No Abbreviations:** Variable, function, parameter, and class names must be written out fully to maximize readability and clarity (e.g., `calculateTotalAmount` instead of `calcTotAmt`, `stepperMotor` instead of `mot`).
 2. **Clean & Expressive Code:** Code should read like prose. Identifier names must clearly express their intent and responsibility, making the code largely self-explanatory.
-3. **Comments Explain HOW and WHY:** Comments must not describe *what* the code does (the code itself should be clear enough to show that). Comments explain *why* a particular design decision was made, what physical or electrical constraints apply, or *how* a non-obvious algorithm operates.
+3. **No 'I' Prefix for Interfaces:** Do not prefix abstract interface classes with 'I' (e.g., use `HandActuator`, `AlarmStorage`, or `TimeSource` instead of `IHandActuator`, `IAlarmStorage`, or `ITimeSource`). In standard C++, interfaces are abstract base classes with pure virtual functions; the 'I' prefix is considered obsolete Hungarian notation.
+4. **Comments Explain HOW and WHY:** Comments must not describe *what* the code does (the code itself should be clear enough to show that). Comments explain *why* a particular design decision was made, what physical or electrical constraints apply, or *how* a non-obvious algorithm operates.
 
 ## Embedded C++ & FreeRTOS Engineering Standards
 
@@ -37,6 +38,7 @@
 ## Project Context & Architecture
 
 - **Domain Model & Glossary:** See `CONTEXT.md` at repository root. Always use this ubiquitous language when naming entities, writing specs, or filing issues.
+- **Target Architecture & Engineering Standards:** See `docs/ARCHITECTURE.md` for the hexagonal architectural blueprint, namespace layouts, port definitions, and FreeRTOS concurrency rules.
 - **System Architecture & Inventory:** See `docs/SYSTEM_INVENTORY.md` for a complete breakdown of hardware pinouts, active modules, FreeRTOS tasks, build targets, and current test statuses.
 
 ## Agent Skills
