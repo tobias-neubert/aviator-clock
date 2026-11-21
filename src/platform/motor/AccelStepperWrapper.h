@@ -1,9 +1,8 @@
 #pragma once
 
-#include "platform/motor/StepperController.h"
-
 #if __has_include(<AccelStepper.h>)
 #include <AccelStepper.h>
+#include "platform/motor/StepperController.h"
 
 #define AVIATOR_ACCEL_STEPPER_AVAILABLE 1
 
