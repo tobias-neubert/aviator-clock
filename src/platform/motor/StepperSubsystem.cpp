@@ -81,7 +81,8 @@ void StepperSubsystem::stop() {
 
 #if defined(ARDUINO) || defined(ESP_PLATFORM)
     if (_taskHandle != nullptr) {
-        vTaskDelete(_taskHandle);
+        // Yield to allow motor runner task to terminate its own loop cleanly
+        vTaskDelay(pdMS_TO_TICKS(10));
         _taskHandle = nullptr;
     }
 #endif

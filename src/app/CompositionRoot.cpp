@@ -139,7 +139,8 @@ void CompositionRoot::stop() {
 
 #if defined(ARDUINO) || defined(ESP_PLATFORM)
     if (_clockTaskHandle != nullptr) {
-        vTaskDelete(_clockTaskHandle);
+        // Yield to allow the background task loop to exit cleanly and delete itself
+        vTaskDelay(pdMS_TO_TICKS(CLOCK_LOOP_INTERVAL_MS * 2));
         _clockTaskHandle = nullptr;
     }
 #endif

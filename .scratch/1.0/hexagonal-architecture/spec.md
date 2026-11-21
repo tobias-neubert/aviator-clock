@@ -48,7 +48,7 @@ Phase 4: Composition Root & Legacy Deletion
   Ticket 07: [DONE] Assemble CompositionRoot, Migrate main.cpp, and Remove Legacy lib/
 
 Phase 5: Embedded Standards Compliance & Concurrency Hardening
-  Ticket 08: [OPEN] Remediation: Zero Dynamic Allocation at Runtime and Concurrency Safety
+  Ticket 08: [DONE] Remediation: Zero Dynamic Allocation at Runtime and Concurrency Safety
 ```
 
 ## 5. Definition of Done

@@ -54,3 +54,11 @@ With all domain components, ports, and platform adapters implemented, the final 
    - **Finding:** In `src/main.cpp`, `globalCompositionRoot = std::make_unique<aviator::app::CompositionRoot>()` allocates the entire CompositionRoot on the heap.
    - **Remediation Instructions:**
      - While permitted under the "once during initialization" exemption, this can be made strictly zero-heap by declaring `static aviator::app::CompositionRoot globalCompositionRoot;` with static storage duration.
+
+### Resolution (Resolved)
+- Replaced dynamic heap allocation of `globalCompositionRoot` in `src/main.cpp` with a statically allocated object (`static aviator::app::CompositionRoot globalCompositionRoot;`), achieving 100% zero-heap composition root instantiation.
+- Pre-allocated `WebPortalServer`'s `AsyncWebServer` as a persistent member object, mounting LittleFS and registering static routes once during startup (`initialize()`), completely eliminating `make_unique`/`reset` allocations during runtime mode switches.
+- Hardened task shutdown lifecycle across `CompositionRoot`, `StepperSubsystem`, and `SetupButtonAdapter`:
+  - Operational tasks (`motor_runner_task`, `setup_btn_task`, `clock_engine_task`) run continuously for the system lifetime and are never killed or recreated during mode switches.
+  - Shutdown methods (`stop()`) signal termination via atomic flags and allow task loops to exit gracefully and delete themselves (`vTaskDelete(NULL)`), eliminating unsafe asynchronous task kills.
+- Verified that all 109 unit tests pass (`pio test -e google_tests`) and ESP32 hardware build succeeds (`pio run -e nodemcu-32s`).

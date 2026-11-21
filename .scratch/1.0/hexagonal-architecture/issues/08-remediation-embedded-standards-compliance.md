@@ -1,6 +1,6 @@
 # 08 Remediation: Zero Dynamic Allocation at Runtime and Concurrency Safety
 
-Status: ready-for-agent
+Status: closed
 Blocked by: 07
 
 ## Context

@@ -55,11 +55,9 @@ void SetupButtonAdapter::stop() {
     _isRunning.store(false);
 #if defined(ARDUINO) || defined(ESP_PLATFORM)
     if (_taskHandle != nullptr) {
+        // Yield to allow polling task loop to terminate cleanly and delete itself
         vTaskDelay(pdMS_TO_TICKS(_configuration.pollingIntervalMilliseconds * 2));
-        if (_taskHandle != nullptr) {
-            vTaskDelete(_taskHandle);
-            _taskHandle = nullptr;
-        }
+        _taskHandle = nullptr;
     }
 #endif
 }
